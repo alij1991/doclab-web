@@ -172,7 +172,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     setStatus('Merging…');
     try {
       const bytes = await pdfApi().merge(valid.map((i) => ({ name: i.name, bytes: i.bytes.slice(0) })));
-      const blob = new Blob([bytes], { type: 'application/pdf' });
+      // Copy into a plain ArrayBuffer so Blob's strict types are satisfied
+      // (the worker returns a Uint8Array<ArrayBufferLike>).
+      const buf = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(buf).set(bytes);
+      const blob = new Blob([buf], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
