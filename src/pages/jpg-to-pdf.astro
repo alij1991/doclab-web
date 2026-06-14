@@ -1,0 +1,22 @@
+---
+import Base from '../layouts/Base.astro';
+import ImagesToPdfTool from '../components/ImagesToPdfTool.astro';
+---
+
+<Base
+  title="JPG to PDF — free & private image to PDF | DocLab"
+  description="Convert JPG and PNG images into a single PDF, free and entirely in your browser. Your images are never uploaded."
+>
+  <section class="container tool-head">
+    <p class="eyebrow"><a href="/" style="color: var(--brand); text-decoration: none;">← All tools</a></p>
+    <h1>Images to PDF</h1>
+    <p class="lead">
+      Turn JPG and PNG photos or scans into one PDF — one image per page, in any order. Runs in
+      your browser; your images are never uploaded.
+    </p>
+  </section>
+
+  <section class="container" style="padding-top: 8px;">
+    <ImagesToPdfTool />
+  </section>
+</Base>

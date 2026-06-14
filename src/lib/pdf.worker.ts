@@ -23,6 +23,12 @@ export interface PdfInfo {
   tagged: boolean;
 }
 
+export interface ImageItem {
+  name: string;
+  bytes: ArrayBuffer;
+  kind: 'jpg' | 'png';
+}
+
 const api = {
   /** Page count for one PDF. Throws on encrypted/invalid (the UI surfaces it). */
   async pageCount(bytes: ArrayBuffer): Promise<number> {
@@ -97,6 +103,27 @@ const api = {
     out.setProducer(PRODUCER);
     const copied = await out.copyPages(src, keep);
     for (const page of copied) out.addPage(page);
+    return out.save();
+  },
+
+  /** Build a PDF from images, one image per page. Each page is sized so its
+   *  long edge is `longEdgePt` (default 792pt = US Letter long edge),
+   *  preserving the image's aspect ratio; the image fills the page. */
+  async imagesToPdf(images: ImageItem[], longEdgePt = 792): Promise<Uint8Array> {
+    if (images.length === 0) throw new Error('No images to convert.');
+    const out = await PDFDocument.create();
+    out.setCreator('DocLab Web');
+    out.setProducer(PRODUCER);
+    for (const img of images) {
+      const embedded = img.kind === 'png' ? await out.embedPng(img.bytes) : await out.embedJpg(img.bytes);
+      const { width: iw, height: ih } = embedded.scale(1);
+      const longest = Math.max(iw, ih) || 1;
+      const scale = longEdgePt / longest;
+      const w = iw * scale;
+      const h = ih * scale;
+      const page = out.addPage([w, h]);
+      page.drawImage(embedded, { x: 0, y: 0, width: w, height: h });
+    }
     return out.save();
   },
 };
