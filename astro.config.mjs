@@ -5,7 +5,7 @@ import { defineConfig } from 'astro/config';
 // browser and nothing is ever uploaded. The host (Cloudflare Pages) only
 // serves static files.
 export default defineConfig({
-  site: 'https://doclab.app',
+  site: 'https://doc-lab.net',
   output: 'static',
   // Bundle Web Workers as ES modules — the PDF work (Comlink + @cantoo/pdf-lib)
   // runs off the main thread so the UI never freezes.

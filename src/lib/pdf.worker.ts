@@ -32,7 +32,7 @@ const api = {
   async merge(files: MergeFile[]): Promise<Uint8Array> {
     const out = await PDFDocument.create();
     out.setCreator('DocLab Web');
-    out.setProducer('DocLab Web — https://doclab.app');
+    out.setProducer('DocLab Web — https://doc-lab.net');
     for (const f of files) {
       const src = await PDFDocument.load(f.bytes);
       const copied = await out.copyPages(src, src.getPageIndices());
