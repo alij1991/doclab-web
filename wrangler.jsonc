@@ -1,0 +1,11 @@
+{
+  // Cloudflare Workers — static-assets-only deploy. There is no server
+  // code: `npm run build` emits the static site to ./dist and Wrangler
+  // serves it from the edge. The CSP/security headers in public/_headers
+  // are copied into dist/ by Astro and honored by Workers Static Assets.
+  "name": "doclab-web",
+  "compatibility_date": "2025-06-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}
