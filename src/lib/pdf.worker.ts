@@ -1,5 +1,6 @@
 import * as Comlink from 'comlink';
 import { PDFDocument, PDFName, degrees } from '@cantoo/pdf-lib';
+import { zipSync } from 'fflate';
 
 // Runs in a Web Worker — OFF the main thread, so big jobs never freeze the
 // UI. This is also where the privacy guarantee lives: bytes are processed
@@ -27,6 +28,14 @@ export interface ImageItem {
   name: string;
   bytes: ArrayBuffer;
   kind: 'jpg' | 'png';
+}
+
+export interface SplitResult {
+  /** 'pdf' when a single group (one file); 'zip' when many. */
+  kind: 'pdf' | 'zip';
+  filename: string;
+  bytes: Uint8Array;
+  parts: number;
 }
 
 const api = {
@@ -125,6 +134,42 @@ const api = {
       page.drawImage(embedded, { x: 0, y: 0, width: w, height: h });
     }
     return out.save();
+  },
+
+  /** Split a PDF into one output file per group of 0-based page indices.
+   *  One group -> a single PDF; many groups -> a .zip of PDFs. `baseName` is
+   *  the original filename without extension, used to name the outputs. */
+  async splitPdf(bytes: ArrayBuffer, groups: number[][], baseName: string): Promise<SplitResult> {
+    const src = await PDFDocument.load(bytes);
+    const total = src.getPageCount();
+    const valid = groups
+      .map((g) => g.filter((i) => i >= 0 && i < total))
+      .filter((g) => g.length > 0);
+    if (valid.length === 0) throw new Error('No valid pages to split.');
+
+    const base = baseName || 'document';
+    const pad = String(valid.length).length;
+
+    const buildPdf = async (indices: number[]): Promise<Uint8Array> => {
+      const out = await PDFDocument.create();
+      out.setCreator('DocLab Web');
+      out.setProducer(PRODUCER);
+      const copied = await out.copyPages(src, indices);
+      for (const page of copied) out.addPage(page);
+      return out.save();
+    };
+
+    if (valid.length === 1) {
+      return { kind: 'pdf', filename: `${base}-split.pdf`, bytes: await buildPdf(valid[0]!), parts: 1 };
+    }
+
+    const files: Record<string, Uint8Array> = {};
+    for (let i = 0; i < valid.length; i++) {
+      const part = String(i + 1).padStart(pad, '0');
+      files[`${base}-part-${part}.pdf`] = await buildPdf(valid[i]!);
+    }
+    const zipped = zipSync(files, { level: 0 }); // PDFs are already compressed; store-only is fast
+    return { kind: 'zip', filename: `${base}-split.zip`, bytes: zipped, parts: valid.length };
   },
 };
 
