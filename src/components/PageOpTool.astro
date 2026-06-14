@@ -1,0 +1,238 @@
+---
+// Reusable single-PDF page-operation tool: rotate / delete / extract.
+// The interactive logic is the <script> island below; it reads the op from
+// the root data attribute and calls the PDF Web Worker.
+interface Props {
+  op: 'rotate' | 'delete' | 'extract';
+}
+const { op } = Astro.props;
+const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
+
+const runLabel =
+  op === 'rotate' ? 'Rotate & download' : op === 'delete' ? 'Delete pages & download' : 'Extract pages & download';
+const rangeLabel = op === 'delete' ? 'Pages to delete' : op === 'extract' ? 'Pages to keep' : 'Pages to rotate';
+const rangeOptional = op === 'rotate';
+---
+
+<section class="pageop" data-pageop={op}>
+  <div id="dropzone" class="dropzone">
+    <h3>Drop a PDF here</h3>
+    <p class="muted" style="margin: 4px 0 14px;">or</p>
+    <button type="button" id="pickBtn" class="btn btn-ghost">Choose a PDF</button>
+    <input id="fileInput" type="file" accept="application/pdf,.pdf" class="visually-hidden" tabindex="-1" aria-hidden="true" />
+  </div>
+
+  <div id="controls" hidden style="margin-top: 22px;">
+    <div class="filerow" style="margin-bottom: 16px;">
+      <div class="meta">
+        <div class="name" id="fileName"></div>
+        <div class="sub" id="fileSub"></div>
+      </div>
+      <button type="button" id="resetBtn" class="btn-icon" aria-label="Choose a different file">✕</button>
+    </div>
+
+    <p id="warn" class="warn" hidden></p>
+
+    {
+      op === 'rotate' && (
+        <fieldset>
+          <legend>Rotation</legend>
+          <div class="rot-group" role="radiogroup" aria-label="Rotation amount">
+            <label class="rot"><input type="radio" name="rot" value="270" /> ↶ Left 90°</label>
+            <label class="rot"><input type="radio" name="rot" value="90" checked /> ↷ Right 90°</label>
+            <label class="rot"><input type="radio" name="rot" value="180" /> ⤬ 180°</label>
+          </div>
+        </fieldset>
+      )
+    }
+
+    <div style="margin-bottom: 16px;">
+      <label for="rangeInput" style="display: block; font-size: 14px; margin-bottom: 6px;">
+        {rangeLabel}{rangeOptional ? ' (optional — blank = all pages)' : ''}
+      </label>
+      <input
+        id="rangeInput"
+        type="text"
+        class="text-input"
+        style="width: 100%;"
+        placeholder={rangeOptional ? 'All pages — or e.g. 2-4' : 'e.g. 1-3, 5, 8-'}
+        autocomplete="off"
+      />
+      <p class="muted" style="font-size: 12.5px; margin: 6px 0 0;">Use page numbers like <code>1-3, 5, 8-</code> (1 = first page).</p>
+    </div>
+
+    <div class="actions-row">
+      <button id="runBtn" class="btn btn-primary">{runLabel}</button>
+      <button id="clearBtn" type="button" class="btn btn-ghost">Start over</button>
+    </div>
+  </div>
+
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <div class="trust"><strong>100% private.</strong> This runs in your browser — your PDF is never uploaded.</div>
+  <p class="upsell muted" style="font-size: 13.5px;">
+    Need OCR, redaction, or to edit text? <a href={STORE_URL} target="_blank" rel="noopener">Get the free DocLab desktop app →</a>
+  </p>
+</section>
+
+<script>
+  import { pdfApi } from '../lib/pdfClient';
+  import { parsePageRange } from '../lib/pageRange';
+
+  const root = document.querySelector('.pageop') as HTMLElement;
+  const op = (root.dataset.pageop ?? 'rotate') as 'rotate' | 'delete' | 'extract';
+
+  const dropzone = document.getElementById('dropzone')!;
+  const pickBtn = document.getElementById('pickBtn') as HTMLButtonElement;
+  const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+  const controls = document.getElementById('controls')!;
+  const fileNameEl = document.getElementById('fileName')!;
+  const fileSubEl = document.getElementById('fileSub')!;
+  const warnEl = document.getElementById('warn')!;
+  const rangeInput = document.getElementById('rangeInput') as HTMLInputElement;
+  const runBtn = document.getElementById('runBtn') as HTMLButtonElement;
+  const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement;
+  const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
+  const statusEl = document.getElementById('status')!;
+
+  let bytes: ArrayBuffer | null = null;
+  let fileName = '';
+  let pageCount = 0;
+
+  function setStatus(msg: string, kind: '' | 'ok' | 'err' = '') {
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function shortError(e: unknown): string {
+    const s = e instanceof Error ? e.message : String(e);
+    return s.length > 160 ? s.slice(0, 159) + '…' : s;
+  }
+
+  function reset() {
+    bytes = null;
+    fileName = '';
+    pageCount = 0;
+    controls.hidden = true;
+    dropzone.hidden = false;
+    warnEl.hidden = true;
+    rangeInput.value = '';
+    fileInput.value = '';
+    setStatus('');
+  }
+
+  async function loadFile(file: File) {
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setStatus('Please choose a PDF file.', 'err');
+      return;
+    }
+    setStatus('Reading…');
+    const buf = await file.arrayBuffer();
+    const info = await pdfApi().analyze(buf.slice(0));
+    if (info.encrypted || info.pages === 0) {
+      setStatus("Can't read this PDF (encrypted or damaged) — try the desktop app.", 'err');
+      return;
+    }
+    bytes = buf;
+    fileName = file.name;
+    pageCount = info.pages;
+    fileNameEl.textContent = file.name;
+    fileSubEl.textContent = `${pageCount} page${pageCount === 1 ? '' : 's'}`;
+    if (info.tagged) {
+      warnEl.hidden = false;
+      warnEl.textContent =
+        'Heads up: this PDF is tagged for accessibility. Editing it here may drop those tags — for accessibility-preserving edits, use the DocLab desktop app.';
+    } else {
+      warnEl.hidden = true;
+    }
+    dropzone.hidden = true;
+    controls.hidden = false;
+    setStatus('');
+  }
+
+  function suggestedName(): string {
+    const base = fileName.replace(/\.pdf$/i, '') || 'document';
+    const suffix = op === 'rotate' ? 'rotated' : op === 'delete' ? 'pages-removed' : 'extract';
+    return `${base}-${suffix}.pdf`;
+  }
+
+  function download(out: Uint8Array, name: string) {
+    const ab = new ArrayBuffer(out.byteLength);
+    new Uint8Array(ab).set(out);
+    const url = URL.createObjectURL(new Blob([ab], { type: 'application/pdf' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  async function run() {
+    if (!bytes) return;
+    const raw = rangeInput.value.trim();
+    if (op !== 'rotate' && raw === '') {
+      setStatus('Enter which pages first (e.g. 1-3, 5).', 'err');
+      rangeInput.focus();
+      return;
+    }
+    let indices: number[];
+    try {
+      indices = parsePageRange(raw, pageCount);
+    } catch (e) {
+      setStatus(shortError(e), 'err');
+      return;
+    }
+    runBtn.disabled = true;
+    setStatus('Working…');
+    try {
+      let out: Uint8Array;
+      if (op === 'rotate') {
+        const checked = root.querySelector('input[name="rot"]:checked') as HTMLInputElement | null;
+        const deg = Number(checked?.value ?? '90');
+        out = await pdfApi().rotate(bytes.slice(0), deg, raw === '' ? [] : indices);
+      } else if (op === 'delete') {
+        out = await pdfApi().deletePages(bytes.slice(0), indices);
+      } else {
+        out = await pdfApi().extractPages(bytes.slice(0), indices);
+      }
+      download(out, suggestedName());
+      setStatus('Done — your download should start automatically.', 'ok');
+    } catch (e) {
+      console.error(e);
+      setStatus(shortError(e), 'err');
+    } finally {
+      runBtn.disabled = false;
+    }
+  }
+
+  pickBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files?.[0];
+    if (f) loadFile(f);
+  });
+  runBtn.addEventListener('click', run);
+  rangeInput.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Enter') run();
+  });
+  clearBtn.addEventListener('click', reset);
+  resetBtn.addEventListener('click', reset);
+
+  (['dragenter', 'dragover'] as const).forEach((ev) =>
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag');
+    }),
+  );
+  (['dragleave', 'drop'] as const).forEach((ev) =>
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag');
+    }),
+  );
+  dropzone.addEventListener('drop', (e) => {
+    const f = (e as DragEvent).dataTransfer?.files?.[0];
+    if (f) loadFile(f);
+  });
+</script>

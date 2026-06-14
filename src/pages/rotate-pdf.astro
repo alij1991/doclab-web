@@ -1,0 +1,22 @@
+---
+import Base from '../layouts/Base.astro';
+import PageOpTool from '../components/PageOpTool.astro';
+---
+
+<Base
+  title="Rotate PDF — free & private | DocLab"
+  description="Rotate PDF pages 90° or 180°, free and entirely in your browser. Your file is never uploaded."
+>
+  <section class="container tool-head">
+    <p class="eyebrow"><a href="/" style="color: var(--brand); text-decoration: none;">← All tools</a></p>
+    <h1>Rotate PDF</h1>
+    <p class="lead">
+      Turn pages the right way up — rotate the whole document or just specific pages. Runs in
+      your browser; your file is never uploaded.
+    </p>
+  </section>
+
+  <section class="container" style="padding-top: 8px;">
+    <PageOpTool op="rotate" />
+  </section>
+</Base>
