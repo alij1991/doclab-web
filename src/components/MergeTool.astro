@@ -1,0 +1,221 @@
+---
+// Merge tool UI. The interactive logic is the <script> island below — it
+// runs in the browser and calls the PDF Web Worker (pdfClient).
+const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
+---
+
+<section class="merge-tool">
+  <div id="dropzone" class="dropzone">
+    <h3>Drop PDFs here</h3>
+    <p class="muted" style="margin: 4px 0 14px;">or</p>
+    <button type="button" id="pickBtn" class="btn btn-ghost">Choose PDF files</button>
+    <input
+      id="fileInput"
+      type="file"
+      accept="application/pdf,.pdf"
+      multiple
+      class="visually-hidden"
+      tabindex="-1"
+      aria-hidden="true"
+    />
+    <p class="muted" style="margin-top: 14px; font-size: 13px;">
+      Add two or more PDFs — they're combined in the order shown below.
+    </p>
+  </div>
+
+  <ol id="filelist" class="filelist" aria-label="Files to merge, in order"></ol>
+
+  <div class="actions-row" id="actions" hidden>
+    <button id="mergeBtn" class="btn btn-primary" disabled>Merge &amp; download</button>
+    <button id="clearBtn" class="btn btn-ghost">Clear all</button>
+  </div>
+
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <div class="trust">
+    <strong>100% private.</strong> Your PDFs are combined right here in your browser —
+    they are never uploaded to a server.
+  </div>
+
+  <p class="upsell muted" style="font-size: 13.5px;">
+    Need OCR, redaction, or to edit text?
+    <a href={STORE_URL} target="_blank" rel="noopener">Get the free DocLab desktop app →</a>
+  </p>
+</section>
+
+<script>
+  import { pdfApi } from '../lib/pdfClient';
+
+  interface Item {
+    id: string;
+    name: string;
+    bytes: ArrayBuffer;
+    pages: number | null;
+    error?: string;
+  }
+
+  const dropzone = document.getElementById('dropzone')!;
+  const pickBtn = document.getElementById('pickBtn') as HTMLButtonElement;
+  const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+  const listEl = document.getElementById('filelist') as HTMLOListElement;
+  const actions = document.getElementById('actions')!;
+  const mergeBtn = document.getElementById('mergeBtn') as HTMLButtonElement;
+  const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement;
+  const statusEl = document.getElementById('status')!;
+
+  let items: Item[] = [];
+
+  function setStatus(msg: string, kind: '' | 'ok' | 'err' = '') {
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  const validCount = () => items.filter((i) => !i.error).length;
+
+  function iconButton(label: string, aria: string, onClick: () => void): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn-icon';
+    b.textContent = label;
+    b.setAttribute('aria-label', aria);
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function render() {
+    listEl.replaceChildren();
+    items.forEach((item, idx) => {
+      const li = document.createElement('li');
+      li.className = 'filerow';
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = item.name;
+      const sub = document.createElement('div');
+      sub.className = 'sub';
+      if (item.error) {
+        sub.textContent = item.error;
+        sub.style.color = 'var(--danger)';
+      } else {
+        sub.textContent =
+          item.pages == null ? 'Reading…' : `${item.pages} page${item.pages === 1 ? '' : 's'}`;
+      }
+      meta.append(name, sub);
+
+      const ord = document.createElement('div');
+      ord.className = 'ord';
+      const up = iconButton('↑', `Move ${item.name} up`, () => move(idx, -1));
+      up.disabled = idx === 0;
+      const down = iconButton('↓', `Move ${item.name} down`, () => move(idx, 1));
+      down.disabled = idx === items.length - 1;
+      const rm = iconButton('✕', `Remove ${item.name}`, () => remove(item.id));
+      ord.append(up, down, rm);
+
+      li.append(meta, ord);
+      listEl.appendChild(li);
+    });
+    actions.hidden = items.length === 0;
+    mergeBtn.disabled = validCount() < 2;
+  }
+
+  function move(idx: number, dir: number) {
+    const j = idx + dir;
+    if (j < 0 || j >= items.length) return;
+    const tmp = items[idx]!;
+    items[idx] = items[j]!;
+    items[j] = tmp;
+    render();
+  }
+
+  function remove(id: string) {
+    items = items.filter((i) => i.id !== id);
+    render();
+    if (items.length === 0) setStatus('');
+  }
+
+  async function addFiles(files: FileList | File[]) {
+    const pdfs = Array.from(files).filter(
+      (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'),
+    );
+    if (pdfs.length === 0) {
+      setStatus('Please choose PDF files.', 'err');
+      return;
+    }
+    setStatus('');
+    const added: Item[] = [];
+    for (const f of pdfs) {
+      const bytes = await f.arrayBuffer();
+      const item: Item = { id: crypto.randomUUID(), name: f.name, bytes, pages: null };
+      items.push(item);
+      added.push(item);
+    }
+    render();
+    for (const item of added) {
+      try {
+        item.pages = await pdfApi().pageCount(item.bytes.slice(0));
+      } catch {
+        item.error = "Can't read this PDF (encrypted or damaged) — try the desktop app.";
+      }
+      render();
+    }
+  }
+
+  async function doMerge() {
+    const valid = items.filter((i) => !i.error);
+    if (valid.length < 2) {
+      setStatus('Add at least two readable PDFs to merge.', 'err');
+      return;
+    }
+    mergeBtn.disabled = true;
+    setStatus('Merging…');
+    try {
+      const bytes = await pdfApi().merge(valid.map((i) => ({ name: i.name, bytes: i.bytes.slice(0) })));
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'doclab-merged.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      setStatus(`Done — merged ${valid.length} PDFs. Your download should start automatically.`, 'ok');
+    } catch (e) {
+      console.error(e);
+      setStatus('Merge failed. Please try again, or use the desktop app for complex files.', 'err');
+    } finally {
+      mergeBtn.disabled = validCount() < 2;
+    }
+  }
+
+  pickBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files) addFiles(fileInput.files);
+    fileInput.value = '';
+  });
+  mergeBtn.addEventListener('click', doMerge);
+  clearBtn.addEventListener('click', () => {
+    items = [];
+    render();
+    setStatus('');
+  });
+
+  (['dragenter', 'dragover'] as const).forEach((ev) =>
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag');
+    }),
+  );
+  (['dragleave', 'drop'] as const).forEach((ev) =>
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag');
+    }),
+  );
+  dropzone.addEventListener('drop', (e) => {
+    const dt = (e as DragEvent).dataTransfer;
+    if (dt?.files) addFiles(dt.files);
+  });
+</script>

@@ -1,0 +1,25 @@
+{
+  "name": "doclab-web",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "DocLab Web — free, private, 100% in-browser PDF tools. Nothing is uploaded.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "licenses": "license-checker-rseidelsohn --production --excludePrivatePackages --failOn \"AGPL-1.0;AGPL-1.0-only;AGPL-1.0-or-later;AGPL-3.0;AGPL-3.0-only;AGPL-3.0-or-later;GPL-2.0;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0;GPL-3.0-only;GPL-3.0-or-later\""
+  },
+  "dependencies": {
+    "@cantoo/pdf-lib": "^2.7.1",
+    "astro": "^5.18.2",
+    "comlink": "^4.4.2",
+    "pdfjs-dist": "^6.0.227"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "license-checker-rseidelsohn": "^5.0.1",
+    "typescript": "^5.9.3"
+  }
+}

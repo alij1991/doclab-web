@@ -1,0 +1,13 @@
+{
+  "name": "DocLab Web — PDF Tools",
+  "short_name": "DocLab",
+  "description": "Free, private PDF tools that run entirely in your browser. Nothing is uploaded.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0b12",
+  "theme_color": "#5B5BD6",
+  "icons": [
+    { "src": "/icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

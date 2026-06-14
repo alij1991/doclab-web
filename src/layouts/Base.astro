@@ -1,0 +1,60 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#5B5BD6" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta name="generator" content={Astro.generator} />
+    {/* CSP is defense-in-depth here; the authoritative copy is public/_headers
+        (Cloudflare). 'wasm-unsafe-eval' is reserved for the future pdf.js/WASM
+        viewer — the merge tool needs none of it. */}
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+  </head>
+  <body>
+    <a href="#main" class="visually-hidden">Skip to content</a>
+    <header class="site-header">
+      <div class="container nav">
+        <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28" /> DocLab</a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="/#tools">Tools</a>
+          <a class="btn btn-primary btn-sm" href={STORE_URL} target="_blank" rel="noopener">Get the desktop app</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main"><slot /></main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p><strong>Your files never leave your browser.</strong> Every tool runs entirely on your device — nothing is uploaded.</p>
+        <p class="muted">
+          <a href="/">Home</a> ·
+          <a href={STORE_URL} target="_blank" rel="noopener">Microsoft Store</a> ·
+          <a href="https://github.com/alij1991/doclab-website/issues" target="_blank" rel="noopener">Support</a>
+          <br />© 2026 Ali Javdani Rikhtehgar · DocLab Web is free and open source.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

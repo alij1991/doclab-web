@@ -1,0 +1,62 @@
+---
+import Base from '../layouts/Base.astro';
+
+const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
+
+const tools = [
+  { href: '/merge-pdf', icon: '🗂️', title: 'Merge PDF', desc: 'Combine several PDFs into one, in any order.', live: true },
+  { href: '#', icon: '✂️', title: 'Split PDF', desc: 'Separate pages into multiple files.', live: false },
+  { href: '#', icon: '🔢', title: 'Organize pages', desc: 'Reorder, rotate, and delete pages.', live: false },
+  { href: '#', icon: '🔄', title: 'Rotate PDF', desc: 'Turn pages the right way up.', live: false },
+  { href: '#', icon: '📄', title: 'Extract pages', desc: 'Pull out just the pages you need.', live: false },
+  { href: '#', icon: '🖼️', title: 'Images → PDF', desc: 'Turn JPG / PNG photos into a PDF.', live: false },
+];
+---
+
+<Base
+  title="DocLab Web — free, private PDF tools (nothing uploaded)"
+  description="Merge, split, rotate, and convert PDFs free in your browser. Nothing is uploaded — every tool runs on your device. No account, no limits."
+>
+  <section class="container tool-head" style="text-align: center; padding-top: 64px;">
+    <p class="eyebrow">Free · Private · In your browser</p>
+    <h1>Free PDF tools that <span class="grad">never upload</span> your files</h1>
+    <p class="lead" style="margin: 0 auto;">
+      Merge, split, rotate, and convert PDFs right here — every file is processed on your
+      device and never sent to a server. No account, no limits.
+    </p>
+  </section>
+
+  <section id="tools" class="container" style="padding-top: 8px;">
+    <div class="tool-grid">
+      {
+        tools.map((t) => (
+          <a class="tool" href={t.live ? t.href : '#'} aria-disabled={!t.live}>
+            <div class="ico">{t.icon}</div>
+            <h3>{t.title} {!t.live && <span class="soon">Soon</span>}</h3>
+            <p>{t.desc}</p>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="container" style="margin-top: 48px;">
+    <div class="card" style="display: flex; gap: 24px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <p class="eyebrow">Why DocLab</p>
+        <h2>Your files stay yours</h2>
+        <p class="muted" style="margin: 0;">
+          Unlike most online PDF tools, DocLab Web processes everything in your browser —
+          nothing is uploaded, so no server ever sees your documents.
+        </p>
+      </div>
+      <div style="flex: 1; min-width: 260px;">
+        <p class="muted" style="margin: 0 0 14px;">
+          For OCR, true redaction, text editing, and more, get the full DocLab app — free on
+          the Microsoft Store.
+        </p>
+        <a class="btn btn-primary" href={STORE_URL} target="_blank" rel="noopener">Get the free desktop app →</a>
+      </div>
+    </div>
+  </section>
+</Base>
