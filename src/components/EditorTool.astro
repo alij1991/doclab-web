@@ -1,9 +1,9 @@
 ---
-// Unified visual PDF editor: an always-visible pdf.js thumbnail grid with
-// click-to-select (single / range / multi), drag-to-reorder, and one toolbar
-// for rotate / delete / duplicate / extract / download. Previews render with
-// pdf.js on the main thread; the exported PDF is built by the pdf-lib worker
-// (full fidelity). 100% client-side — nothing uploaded.
+// Unified visual PDF editor — a two-pane studio: a thumbnail rail for
+// navigation / selection / drag-reorder, and a large main view of the page
+// you're working on (zoomable). Previews render with pdf.js on the main
+// thread; the exported PDF is built by the pdf-lib worker (full fidelity).
+// 100% client-side — nothing uploaded.
 const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 ---
 
@@ -14,7 +14,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     <button type="button" id="pickBtn" class="btn btn-ghost">Choose a PDF</button>
     <input id="fileInput" type="file" accept="application/pdf,.pdf" class="visually-hidden" tabindex="-1" aria-hidden="true" />
     <p class="muted" style="margin-top: 14px; font-size: 13px;">
-      See every page, then reorder, rotate, delete, duplicate, or extract — all in one place.
+      See every page full-size, then reorder, rotate, delete, duplicate, or extract — all in one place.
     </p>
   </div>
 
@@ -36,30 +36,44 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
         <button type="button" id="clearSelBtn" class="linklike" disabled>Clear</button>
       </div>
       <div class="bar-actions">
-        <button type="button" id="rotLBtn" class="btn-icon" title="Rotate left">⟲ Left</button>
-        <button type="button" id="rotRBtn" class="btn-icon" title="Rotate right">⟳ Right</button>
-        <button type="button" id="dupBtn" class="btn-icon" title="Duplicate selected pages" disabled>⧉ Duplicate</button>
+        <button type="button" id="rotLBtn" class="btn-icon" title="Rotate left (selected or current page)">⟲ Left</button>
+        <button type="button" id="rotRBtn" class="btn-icon" title="Rotate right (selected or current page)">⟳ Right</button>
+        <button type="button" id="dupBtn" class="btn-icon" title="Duplicate (selected or current page)">⧉ Duplicate</button>
         <button type="button" id="extractBtn" class="btn-icon" title="Extract selected pages to a new PDF" disabled>⬇ Extract</button>
-        <button type="button" id="delBtn" class="btn-icon danger" title="Delete selected pages" disabled>🗑 Delete</button>
+        <button type="button" id="delBtn" class="btn-icon danger" title="Delete (selected or current page)">🗑 Delete</button>
       </div>
       <div class="bar-right">
-        <div class="size-ctl">
-          <span>Size</span>
-          <span class="seg" role="group" aria-label="Thumbnail size">
-            <button type="button" data-size="sm">S</button>
-            <button type="button" data-size="md" class="active">M</button>
-            <button type="button" data-size="lg">L</button>
-          </span>
-        </div>
         <button type="button" id="downloadBtn" class="btn btn-primary btn-sm">Download PDF</button>
       </div>
     </div>
     <p class="org-hint">
-      Click a page to select · <strong>Shift</strong>-click for a range · <strong>Ctrl/⌘</strong>-click to add ·
-      drag to reorder. Actions apply to the selected pages (rotate applies to all when nothing is selected).
+      Click a page to open it big · <strong>Shift</strong>-click for a range · <strong>Ctrl/⌘</strong>-click to add ·
+      drag thumbnails to reorder. Buttons act on the selected pages, or the current page.
     </p>
 
-    <div id="grid" class="pgrid size-md" aria-label="Pages — click to select, drag to reorder"></div>
+    <div class="studio">
+      <div id="rail" class="rail" aria-label="Pages — click to open, drag to reorder"></div>
+      <div class="stage">
+        <div id="stageScroll" class="stage-scroll">
+          <canvas id="bigCanvas" hidden></canvas>
+          <p id="stageEmpty" class="stage-empty">Loading page…</p>
+        </div>
+        <div class="stage-bar">
+          <div class="nav">
+            <button type="button" id="prevBtn" class="btn-icon" aria-label="Previous page">‹</button>
+            <span id="pageInd" class="pageind">—</span>
+            <button type="button" id="nextBtn" class="btn-icon" aria-label="Next page">›</button>
+          </div>
+          <div class="spacer"></div>
+          <div class="zoom">
+            <button type="button" id="zoomOutBtn" class="btn-icon" aria-label="Zoom out">−</button>
+            <span id="zoomVal" class="zval">100%</span>
+            <button type="button" id="zoomInBtn" class="btn-icon" aria-label="Zoom in">+</button>
+            <button type="button" id="zoomFitBtn" class="btn-icon" title="Fit width">Fit</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <p id="status" class="status" role="status" aria-live="polite"></p>
@@ -74,8 +88,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   import { pdfApi } from '../lib/pdfClient';
   import { openForThumbs, type ThumbDoc } from '../lib/pdfThumbs';
 
-  const THUMB_PX = 320;
-
+  const THUMB_PX = 180;
   const $ = (id: string) => document.getElementById(id)!;
   const dropzone = $('dropzone');
   const pickBtn = $('pickBtn') as HTMLButtonElement;
@@ -84,7 +97,12 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const fileNameEl = $('fileName');
   const fileSubEl = $('fileSub');
   const warnEl = $('warn');
-  const grid = $('grid');
+  const rail = $('rail');
+  const stageScroll = $('stageScroll');
+  const bigCanvas = $('bigCanvas') as HTMLCanvasElement;
+  const stageEmpty = $('stageEmpty');
+  const pageInd = $('pageInd');
+  const zoomVal = $('zoomVal');
   const selCountEl = $('selCount');
   const statusEl = $('status');
   const downloadBtn = $('downloadBtn') as HTMLButtonElement;
@@ -96,6 +114,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const extractBtn = $('extractBtn') as HTMLButtonElement;
   const delBtn = $('delBtn') as HTMLButtonElement;
   const resetBtn = $('resetBtn') as HTMLButtonElement;
+  const prevBtn = $('prevBtn') as HTMLButtonElement;
+  const nextBtn = $('nextBtn') as HTMLButtonElement;
+  const zoomInBtn = $('zoomInBtn') as HTMLButtonElement;
+  const zoomOutBtn = $('zoomOutBtn') as HTMLButtonElement;
+  const zoomFitBtn = $('zoomFitBtn') as HTMLButtonElement;
 
   interface Tile { src: number; rotate: number; }
 
@@ -107,7 +130,10 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const rendered = new Set<string>();
   const selected = new Set<string>();
   let anchor: string | null = null;
+  let activeId: string | null = null;
+  let zoom = 1;
   let renderChain: Promise<void> = Promise.resolve();
+  let bigToken = 0;
   let observer: IntersectionObserver | null = null;
 
   function setStatus(msg: string, kind: '' | 'ok' | 'err' = '') {
@@ -118,32 +144,45 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const s = e instanceof Error ? e.message : String(e);
     return s.length > 160 ? s.slice(0, 159) + '…' : s;
   }
-  const orderedIds = (): string[] => [...grid.querySelectorAll<HTMLElement>('.ptile')].map((t) => t.dataset.id!);
+  const orderedIds = (): string[] => [...rail.querySelectorAll<HTMLElement>('.ptile')].map((t) => t.dataset.id!);
   const selectedOrdered = (): string[] => orderedIds().filter((id) => selected.has(id));
-  const tileCount = (): number => grid.querySelectorAll('.ptile').length;
+  const targetIds = (): string[] => (selected.size ? selectedOrdered() : activeId ? [activeId] : []);
+  const tileCount = (): number => rail.querySelectorAll('.ptile').length;
 
   function renumber() {
-    const tiles = grid.querySelectorAll<HTMLElement>('.ptile');
-    tiles.forEach((t, i) => {
+    rail.querySelectorAll<HTMLElement>('.ptile').forEach((t, i) => {
       const pos = t.querySelector('.pos');
       if (pos) pos.textContent = String(i + 1);
     });
-    const n = tiles.length;
+    const n = tileCount();
     fileSubEl.textContent = `${n} page${n === 1 ? '' : 's'}`;
+    updateButtons();
+    updatePageInd();
+  }
+  function updatePageInd() {
+    const ids = orderedIds();
+    const idx = activeId ? ids.indexOf(activeId) : -1;
+    pageInd.textContent = idx >= 0 ? `Page ${idx + 1} of ${ids.length}` : '—';
+    prevBtn.disabled = idx <= 0;
+    nextBtn.disabled = idx < 0 || idx >= ids.length - 1;
+  }
+  function updateButtons() {
+    const n = tileCount();
+    const hasTarget = targetIds().length > 0 && n > 0;
+    rotLBtn.disabled = !hasTarget;
+    rotRBtn.disabled = !hasTarget;
+    dupBtn.disabled = !hasTarget;
+    delBtn.disabled = !hasTarget;
+    extractBtn.disabled = selected.size === 0;
     downloadBtn.disabled = n === 0;
   }
-
   function refreshSelectionUI() {
     for (const [id, el] of els) el.classList.toggle('sel', selected.has(id));
     const n = selected.size;
     selCountEl.textContent = n === 0 ? 'No pages selected' : `${n} page${n === 1 ? '' : 's'} selected`;
-    const none = n === 0;
-    clearSelBtn.disabled = none;
-    dupBtn.disabled = none;
-    extractBtn.disabled = none;
-    delBtn.disabled = none;
+    clearSelBtn.disabled = n === 0;
+    updateButtons();
   }
-
   function updateRotBadge(id: string) {
     const el = els.get(id);
     const s = state.get(id);
@@ -166,25 +205,46 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
         await thumbDoc.render(s.src, canvas, THUMB_PX, s.rotate);
         el.classList.add('thumb-ready');
       } catch (e) {
-        el.classList.remove('thumb-ready'); // numbered placeholder stays; export is unaffected
+        el.classList.remove('thumb-ready');
         console.error('[thumb render]', e);
       }
     });
   }
 
-  // --- selection ---
-  function selectOnly(id: string) {
-    selected.clear();
-    selected.add(id);
-    anchor = id;
-    refreshSelectionUI();
+  async function renderBig() {
+    if (!thumbDoc || !activeId) {
+      bigCanvas.hidden = true;
+      stageEmpty.hidden = false;
+      stageEmpty.textContent = 'No page';
+      return;
+    }
+    const s = state.get(activeId);
+    if (!s) return;
+    const token = ++bigToken;
+    const cssWidth = Math.max(200, stageScroll.clientWidth - 44);
+    const dpr = window.devicePixelRatio || 1;
+    try {
+      await thumbDoc.renderWidth(s.src, bigCanvas, cssWidth, zoom, s.rotate, dpr);
+      if (token !== bigToken) return; // a newer render superseded this one
+      bigCanvas.hidden = false;
+      stageEmpty.hidden = true;
+    } catch (e) {
+      console.error('[big render]', e);
+      if (token === bigToken) { stageEmpty.hidden = false; stageEmpty.textContent = 'Preview unavailable'; }
+    }
   }
-  function toggle(id: string) {
-    if (selected.has(id)) selected.delete(id);
-    else selected.add(id);
-    anchor = id;
-    refreshSelectionUI();
+
+  function setActive(id: string | null) {
+    activeId = id;
+    for (const [tid, el] of els) el.classList.toggle('active', tid === id);
+    if (id) els.get(id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    updatePageInd();
+    renderBig();
   }
+
+  // selection
+  function selectOnly(id: string) { selected.clear(); selected.add(id); anchor = id; refreshSelectionUI(); }
+  function toggle(id: string) { selected.has(id) ? selected.delete(id) : selected.add(id); anchor = id; refreshSelectionUI(); }
   function selectRange(toId: string) {
     const ids = orderedIds();
     const a = anchor ? ids.indexOf(anchor) : -1;
@@ -194,18 +254,6 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const [lo, hi] = a < b ? [a, b] : [b, a];
     for (let i = lo; i <= hi; i++) selected.add(ids[i]!);
     refreshSelectionUI();
-  }
-
-  function iconButton(label: string, aria: string, cls: string, onClick: () => void): HTMLButtonElement {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'btn-icon' + (cls ? ' ' + cls : '');
-    b.textContent = label;
-    b.title = aria;
-    b.setAttribute('aria-label', aria);
-    b.setAttribute('draggable', 'false');
-    b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
-    return b;
   }
 
   function buildTile(id: string): HTMLElement {
@@ -223,7 +271,6 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const check = document.createElement('span');
     check.className = 'check';
     check.textContent = '✓';
-
     const thumb = document.createElement('div');
     thumb.className = 'thumb';
     const canvas = document.createElement('canvas');
@@ -232,15 +279,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     ph.textContent = `Page ${s.src + 1}`;
     thumb.append(canvas, ph);
 
-    const bar = document.createElement('div');
-    bar.className = 'tilebar';
-    bar.append(
-      iconButton('⟲', 'Rotate left', '', () => rotateOne(id, -90)),
-      iconButton('⟳', 'Rotate right', '', () => rotateOne(id, 90)),
-      iconButton('🗑', 'Delete page', 'danger', () => { selectOnly(id); deleteSelected(); }),
-    );
-
-    el.append(pos, rot, check, thumb, bar);
+    el.append(pos, rot, check, thumb);
     els.set(id, el);
     observer?.observe(el);
 
@@ -249,20 +288,19 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       if (me.shiftKey) selectRange(id);
       else if (me.ctrlKey || me.metaKey) toggle(id);
       else selectOnly(id);
+      setActive(id);
     });
-
     el.addEventListener('dragstart', (e) => {
       el.classList.add('dragging');
       (e as DragEvent).dataTransfer?.setData('text/plain', id);
       if ((e as DragEvent).dataTransfer) (e as DragEvent).dataTransfer!.effectAllowed = 'move';
     });
     el.addEventListener('dragend', () => { el.classList.remove('dragging'); renumber(); });
-
     return el;
   }
 
   function getDragAfter(x: number, y: number): Element | null {
-    const tiles = [...grid.querySelectorAll('.ptile:not(.dragging)')];
+    const tiles = [...rail.querySelectorAll('.ptile:not(.dragging)')];
     let closest: Element | null = null;
     let dist = Infinity;
     let before = true;
@@ -271,69 +309,70 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       const cx = r.left + r.width / 2;
       const cy = r.top + r.height / 2;
       const d = Math.hypot(x - cx, y - cy);
-      if (d < dist) { dist = d; closest = t; before = x < cx; }
+      if (d < dist) { dist = d; closest = t; before = (y < cy) || (Math.abs(y - cy) < r.height / 2 && x < cx); }
     }
     if (!closest) return null;
     return before ? closest : closest.nextElementSibling;
   }
-
-  grid.addEventListener('dragover', (e) => {
+  rail.addEventListener('dragover', (e) => {
     e.preventDefault();
-    const dragging = grid.querySelector('.ptile.dragging') as HTMLElement | null;
+    const dragging = rail.querySelector('.ptile.dragging') as HTMLElement | null;
     if (!dragging) return;
     if ((e as DragEvent).dataTransfer) (e as DragEvent).dataTransfer!.dropEffect = 'move';
     const after = getDragAfter((e as DragEvent).clientX, (e as DragEvent).clientY);
-    if (after == null) grid.appendChild(dragging);
-    else if (after !== dragging) grid.insertBefore(dragging, after);
+    if (after == null) rail.appendChild(dragging);
+    else if (after !== dragging) rail.insertBefore(dragging, after);
   });
-  grid.addEventListener('drop', (e) => e.preventDefault());
+  rail.addEventListener('drop', (e) => e.preventDefault());
 
-  // --- operations ---
-  function rotateOne(id: string, delta: number) {
-    const s = state.get(id);
-    if (!s) return;
-    s.rotate = (((s.rotate + delta) % 360) + 360) % 360;
-    updateRotBadge(id);
-    queueRender(id);
-  }
-  function rotate(delta: number) {
-    const ids = selected.size ? [...selected] : orderedIds();
-    for (const id of ids) rotateOne(id, delta);
-  }
-  function deleteSelected() {
-    if (selected.size === 0) return;
-    if (selected.size >= tileCount()) {
-      setStatus('Keep at least one page.', 'err');
-      return;
+  // operations
+  function rotateIds(ids: string[], delta: number) {
+    for (const id of ids) {
+      const s = state.get(id);
+      if (!s) continue;
+      s.rotate = (((s.rotate + delta) % 360) + 360) % 360;
+      updateRotBadge(id);
+      queueRender(id);
     }
-    for (const id of selected) {
+    if (activeId && ids.includes(activeId)) renderBig();
+  }
+  function deleteIds(ids: string[]) {
+    if (ids.length === 0) return;
+    if (ids.length >= tileCount()) { setStatus('Keep at least one page.', 'err'); return; }
+    const ordered = orderedIds();
+    const firstIdx = Math.min(...ids.map((id) => ordered.indexOf(id)).filter((i) => i >= 0));
+    const removing = new Set(ids);
+    for (const id of ids) {
       const el = els.get(id);
       if (el) { observer?.unobserve(el); el.remove(); }
       els.delete(id);
       state.delete(id);
       rendered.delete(id);
+      selected.delete(id);
     }
-    selected.clear();
     anchor = null;
     renumber();
     refreshSelectionUI();
+    if (activeId && removing.has(activeId)) {
+      const left = orderedIds();
+      setActive(left[Math.min(firstIdx, left.length - 1)] ?? left[0] ?? null);
+    }
     setStatus('');
   }
-  function duplicateSelected() {
-    const ids = selectedOrdered();
-    if (ids.length === 0) return;
-    for (const id of ids) {
+  function duplicateIds(ids: string[]) {
+    const ordered = orderedIds().filter((id) => ids.includes(id));
+    if (ordered.length === 0) return;
+    for (const id of ordered) {
       const s = state.get(id)!;
       const el = els.get(id)!;
       const newId = `d${crypto.randomUUID().slice(0, 8)}`;
       state.set(newId, { src: s.src, rotate: s.rotate });
-      const node = buildTile(newId);
-      el.after(node);
+      el.after(buildTile(newId));
       rendered.add(newId);
       queueRender(newId);
     }
     renumber();
-    setStatus(`Duplicated ${ids.length} page${ids.length === 1 ? '' : 's'}.`, 'ok');
+    setStatus(`Duplicated ${ordered.length} page${ordered.length === 1 ? '' : 's'}.`, 'ok');
   }
 
   function download(out: Uint8Array, name: string) {
@@ -352,10 +391,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 
   async function exportPages(ids: string[], suffix: string, label: string) {
     if (!bytes || ids.length === 0) return;
-    const ops = ids.map((id) => {
-      const s = state.get(id)!;
-      return { index: s.src, rotate: s.rotate };
-    });
+    const ops = ids.map((id) => { const s = state.get(id)!; return { index: s.src, rotate: s.rotate }; });
     downloadBtn.disabled = true;
     extractBtn.disabled = true;
     setStatus('Building your PDF…');
@@ -367,9 +403,15 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       console.error(e);
       setStatus(shortError(e), 'err');
     } finally {
-      downloadBtn.disabled = tileCount() === 0;
-      extractBtn.disabled = selected.size === 0;
+      updateButtons();
     }
+  }
+
+  // zoom
+  function setZoom(z: number) {
+    zoom = Math.min(5, Math.max(0.25, z));
+    zoomVal.textContent = Math.round(zoom * 100) + '%';
+    renderBig();
   }
 
   function teardown() {
@@ -382,7 +424,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     rendered.clear();
     selected.clear();
     anchor = null;
-    grid.replaceChildren();
+    activeId = null;
+    zoom = 1;
+    zoomVal.textContent = '100%';
+    rail.replaceChildren();
+    bigCanvas.hidden = true;
     renderChain = Promise.resolve();
     refreshSelectionUI();
   }
@@ -411,13 +457,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       return;
     }
     let doc: ThumbDoc;
-    try {
-      doc = await openForThumbs(buf.slice(0));
-    } catch (e) {
-      console.error(e);
-      setStatus("Couldn't read this PDF for preview — try the desktop app.", 'err');
-      return;
-    }
+    try { doc = await openForThumbs(buf.slice(0)); }
+    catch (e) { console.error(e); setStatus("Couldn't read this PDF for preview — try the desktop app.", 'err'); return; }
 
     bytes = buf;
     fileName = file.name;
@@ -437,7 +478,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
           if (id && !rendered.has(id)) { rendered.add(id); queueRender(id); }
         }
       },
-      { root: null, rootMargin: '350px' },
+      { root: rail, rootMargin: '400px' },
     );
 
     const frag = document.createDocumentFragment();
@@ -448,23 +489,22 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       state.set(id, { src: i, rotate: 0 });
       frag.appendChild(buildTile(id));
     }
-    grid.appendChild(frag);
+    rail.appendChild(frag);
     renumber();
     refreshSelectionUI();
-    // Eager-render the first screenful; IntersectionObserver handles the rest.
-    ids.slice(0, 12).forEach((id) => { rendered.add(id); queueRender(id); });
+    ids.slice(0, 10).forEach((id) => { rendered.add(id); queueRender(id); });
 
     dropzone.hidden = true;
     workspace.hidden = false;
     setStatus('');
+    stageEmpty.textContent = 'Loading page…';
+    setActive(ids[0] ?? null);
+    selectOnly(ids[0]!);
   }
 
-  // --- wiring ---
+  // wiring
   pickBtn.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', () => {
-    const f = fileInput.files?.[0];
-    if (f) loadFile(f);
-  });
+  fileInput.addEventListener('change', () => { const f = fileInput.files?.[0]; if (f) loadFile(f); });
   resetBtn.addEventListener('click', reset);
   selectAllBtn.addEventListener('click', () => {
     selected.clear();
@@ -473,32 +513,46 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     refreshSelectionUI();
   });
   clearSelBtn.addEventListener('click', () => { selected.clear(); anchor = null; refreshSelectionUI(); });
-  rotLBtn.addEventListener('click', () => rotate(-90));
-  rotRBtn.addEventListener('click', () => rotate(90));
-  dupBtn.addEventListener('click', duplicateSelected);
-  delBtn.addEventListener('click', deleteSelected);
+  rotLBtn.addEventListener('click', () => rotateIds(targetIds(), -90));
+  rotRBtn.addEventListener('click', () => rotateIds(targetIds(), 90));
+  dupBtn.addEventListener('click', () => duplicateIds(targetIds()));
+  delBtn.addEventListener('click', () => deleteIds(targetIds()));
   extractBtn.addEventListener('click', () => exportPages(selectedOrdered(), 'extract', 'Extracted selected pages'));
   downloadBtn.addEventListener('click', () => exportPages(orderedIds(), 'edited', 'Done'));
 
-  document.querySelectorAll<HTMLButtonElement>('.size-ctl .seg button').forEach((b) =>
-    b.addEventListener('click', () => {
-      const size = b.dataset.size!;
-      grid.className = 'pgrid size-' + size;
-      document.querySelectorAll('.size-ctl .seg button').forEach((x) => x.classList.toggle('active', x === b));
-    }),
-  );
+  prevBtn.addEventListener('click', () => {
+    const ids = orderedIds();
+    const i = activeId ? ids.indexOf(activeId) : -1;
+    if (i > 0) { selectOnly(ids[i - 1]!); setActive(ids[i - 1]!); }
+  });
+  nextBtn.addEventListener('click', () => {
+    const ids = orderedIds();
+    const i = activeId ? ids.indexOf(activeId) : -1;
+    if (i >= 0 && i < ids.length - 1) { selectOnly(ids[i + 1]!); setActive(ids[i + 1]!); }
+  });
+  zoomInBtn.addEventListener('click', () => setZoom(zoom * 1.25));
+  zoomOutBtn.addEventListener('click', () => setZoom(zoom * 0.8));
+  zoomFitBtn.addEventListener('click', () => setZoom(1));
+
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(() => { if (activeId) renderBig(); }, 180);
+  });
 
   document.addEventListener('keydown', (e) => {
     if (workspace.hidden) return;
     const tag = (document.activeElement?.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea') return;
-    if ((e.key === 'Delete' || e.key === 'Backspace') && selected.size) { e.preventDefault(); deleteSelected(); }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && targetIds().length) { e.preventDefault(); deleteIds(targetIds()); }
     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
       e.preventDefault();
       selected.clear();
       for (const id of orderedIds()) selected.add(id);
       refreshSelectionUI();
     } else if (e.key === 'Escape') { selected.clear(); anchor = null; refreshSelectionUI(); }
+    else if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); nextBtn.click(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prevBtn.click(); }
   });
 
   (['dragenter', 'dragover'] as const).forEach((ev) =>

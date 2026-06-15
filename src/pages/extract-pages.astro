@@ -1,22 +1,22 @@
 ---
 import Base from '../layouts/Base.astro';
-import PageOpTool from '../components/PageOpTool.astro';
+import EditorTool from '../components/EditorTool.astro';
 ---
 
 <Base
   title="Extract PDF pages — free & private | DocLab"
-  description="Pull selected pages out of a PDF into a new file, free and entirely in your browser. Your file is never uploaded."
+  description="Pull selected pages out of a PDF into a new file while seeing every page, free and entirely in your browser. Your file is never uploaded."
 >
   <section class="container tool-head">
     <p class="eyebrow"><a href="/" style="color: var(--brand); text-decoration: none;">← All tools</a></p>
     <h1>Extract PDF pages</h1>
     <p class="lead">
-      Keep just the pages you want as a brand-new PDF. Runs in your browser; your file is never
-      uploaded.
+      Open your PDF, see every page, select the ones you want, and extract them as a brand-new PDF.
+      Runs in your browser; your file is never uploaded.
     </p>
   </section>
 
   <section class="container" style="padding-top: 8px;">
-    <PageOpTool op="extract" />
+    <EditorTool />
   </section>
 </Base>
