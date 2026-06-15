@@ -9,13 +9,16 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 
 <section class="editor-tool">
   <div id="dropzone" class="dropzone">
-    <h3>Drop a PDF here</h3>
-    <p class="muted" style="margin: 4px 0 14px;">or</p>
-    <button type="button" id="pickBtn" class="btn btn-ghost">Choose a PDF</button>
+    <div class="dz-icon" aria-hidden="true">📄</div>
+    <h3>Drop a PDF to start editing</h3>
+    <p class="muted" style="margin: 2px 0 16px;">or</p>
+    <button type="button" id="pickBtn" class="btn btn-primary">Choose a PDF</button>
     <input id="fileInput" type="file" accept="application/pdf,.pdf" class="visually-hidden" tabindex="-1" aria-hidden="true" />
-    <p class="muted" style="margin-top: 14px; font-size: 13px;">
-      See every page full-size, then reorder, rotate, delete, duplicate, or extract — all in one place.
-    </p>
+    <div class="dz-caps" aria-hidden="true">
+      <span>↕ Reorder</span><span>⟲ Rotate</span><span>🗑 Delete</span><span>＋ Add pages</span>
+      <span>✎ Annotate</span><span>＃ Page numbers</span><span>💧 Watermark</span><span>🖼 To images</span>
+    </div>
+    <p class="muted dz-note">Everything runs in your browser — your file is never uploaded.</p>
   </div>
 
   <div id="workspace" hidden>
@@ -36,27 +39,26 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
         <button type="button" id="clearSelBtn" class="linklike" disabled>None</button>
       </div>
       <span class="bar-div"></span>
-      <div class="bar-group">
-        <button type="button" id="addBtn" class="btn-icon" title="Add pages from another PDF or from images">＋ Add</button>
+      <div class="bar-group" aria-label="Pages">
+        <span class="grp-label">Pages</span>
+        <button type="button" id="addBtn" class="btn-icon" title="Add pages from another PDF or from images">＋ Add pages</button>
         <input id="addInput" type="file" accept="application/pdf,.pdf,image/jpeg,image/png" multiple class="visually-hidden" tabindex="-1" aria-hidden="true" />
-      </div>
-      <span class="bar-div"></span>
-      <div class="bar-group" aria-label="Page actions">
-        <button type="button" id="rotLBtn" class="btn-icon" title="Rotate left (selected or current page)">⟲</button>
-        <button type="button" id="rotRBtn" class="btn-icon" title="Rotate right (selected or current page)">⟳</button>
-        <button type="button" id="dupBtn" class="btn-icon" title="Duplicate (selected or current page)">⧉</button>
+        <button type="button" id="rotLBtn" class="btn-icon" title="Rotate left (selected or current page)">⟲ Rotate left</button>
+        <button type="button" id="rotRBtn" class="btn-icon" title="Rotate right (selected or current page)">⟳ Rotate right</button>
+        <button type="button" id="dupBtn" class="btn-icon" title="Duplicate (selected or current page)">⧉ Duplicate</button>
         <button type="button" id="extractBtn" class="btn-icon" title="Extract selected pages to a new PDF" disabled>⬇ Extract</button>
-        <button type="button" id="delBtn" class="btn-icon danger" title="Delete (selected or current page)">🗑</button>
+        <button type="button" id="delBtn" class="btn-icon danger" title="Delete (selected or current page)">🗑 Delete</button>
       </div>
       <span class="bar-div"></span>
       <div class="bar-group" aria-label="Tools">
+        <span class="grp-label">Tools</span>
         <button type="button" id="annBtn" class="btn-icon" title="Annotate: draw, highlight, text, shapes">✎ Annotate</button>
-        <button type="button" id="numBtn" class="btn-icon" title="Add page numbers">＃ Numbers</button>
+        <button type="button" id="numBtn" class="btn-icon" title="Add page numbers">＃ Page numbers</button>
         <button type="button" id="wmBtn" class="btn-icon" title="Add a watermark">💧 Watermark</button>
-        <button type="button" id="imgBtn" class="btn-icon" title="Export pages as images">🖼 Images</button>
+        <button type="button" id="imgBtn" class="btn-icon" title="Export pages as images">🖼 To images</button>
       </div>
       <div class="bar-right">
-        <button type="button" id="downloadBtn" class="btn btn-primary btn-sm">⤓ Download</button>
+        <button type="button" id="downloadBtn" class="btn btn-primary btn-sm">⤓ Download PDF</button>
       </div>
     </div>
 

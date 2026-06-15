@@ -15,38 +15,44 @@ const tools = [
 ---
 
 <Base
-  title="DocLab Web — free, private PDF tools (nothing uploaded)"
-  description="Merge, split, rotate, and convert PDFs free in your browser. Nothing is uploaded — every tool runs on your device. No account, no limits."
+  title="DocLab — free, private PDF editor & tools (nothing uploaded)"
+  description="A free visual PDF editor plus quick tools — edit, merge, split, rotate, organize, annotate, and convert PDFs right in your browser. No account, no limits, nothing uploaded."
 >
-  <section class="container tool-head" style="text-align: center; padding-top: 64px;">
-    <p class="eyebrow">Free · Private · In your browser</p>
-    <h1>Free PDF tools that <span class="grad">never upload</span> your files</h1>
-    <p class="lead" style="margin: 0 auto;">
-      Merge, split, rotate, and convert PDFs right here — every file is processed on your
-      device and never sent to a server. No account, no limits.
+  <section class="container hero">
+    <p class="eyebrow">Free · Private · 100% in your browser</p>
+    <h1>Edit & convert PDFs that <span class="grad">never leave your device</span></h1>
+    <p class="lead" style="margin: 0 auto 28px;">
+      A full visual PDF editor plus quick one-task tools — merge, split, rotate, organize,
+      annotate, and convert. No account, no limits, and nothing is ever uploaded.
     </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary btn-lg" href="/edit-pdf">Open the PDF editor →</a>
+      <a class="btn btn-ghost btn-lg" href="#tools">Browse all tools</a>
+    </div>
+    <div class="hero-badges">
+      <span class="badge"><b>Free</b></span>
+      <span class="badge"><b>No account</b></span>
+      <span class="badge"><b>Nothing uploaded</b></span>
+      <span class="badge">Windows · Mac · Linux · mobile</span>
+    </div>
   </section>
 
-  <section id="tools" class="container" style="padding-top: 8px;">
-    <a
-      class="card feature-edit"
-      href="/edit-pdf"
-      style="display: flex; gap: 22px; align-items: center; flex-wrap: wrap; text-decoration: none; color: inherit; background: linear-gradient(120deg, rgba(124,108,255,.14), rgba(168,85,247,.08)); border-color: var(--line-2);"
-    >
-      <div style="font-size: 40px; line-height: 1;">🛠️</div>
+  <section id="tools" class="container" style="padding-top: 32px;">
+    <a class="feature-edit" href="/edit-pdf">
+      <div class="fe-icon" aria-hidden="true">🛠️</div>
       <div style="flex: 1; min-width: 240px;">
         <p class="eyebrow" style="margin-bottom: 6px;">All-in-one editor</p>
-        <h2 style="margin: 0 0 6px;">Edit PDF — see every page, change anything</h2>
+        <h2 style="margin: 0 0 8px; font-size: 24px;">The full PDF editor — see every page, change anything</h2>
         <p class="muted" style="margin: 0;">
-          Reorder, rotate, delete, duplicate, and extract pages in one visual workspace — with
-          thumbnails of your whole document. Then download.
+          Reorder, rotate, delete, duplicate, extract, add pages, annotate, number, watermark, and
+          export — in one visual workspace with thumbnails of your whole document.
         </p>
       </div>
       <span class="btn btn-primary" style="flex-shrink: 0;">Open the editor →</span>
     </a>
 
-    <h2 style="font-size: 19px; margin: 36px 0 0;">Or jump to a single task</h2>
-    <div class="tool-grid" style="margin-top: 16px;">
+    <p class="section-label">Or jump to a single task</p>
+    <div class="tool-grid">
       {
         tools.map((t) => (
           <a class="tool" href={t.live ? t.href : '#'} aria-disabled={!t.live}>
@@ -59,20 +65,20 @@ const tools = [
     </div>
   </section>
 
-  <section class="container" style="margin-top: 48px;">
-    <div class="card" style="display: flex; gap: 24px; align-items: center; flex-wrap: wrap;">
+  <section class="container" style="margin-top: 56px;">
+    <div class="card promo">
       <div style="flex: 1; min-width: 260px;">
-        <p class="eyebrow">Why DocLab</p>
-        <h2>Your files stay yours</h2>
+        <p class="eyebrow">Private by design</p>
+        <h2 style="margin: 0 0 10px;">Your files stay yours</h2>
         <p class="muted" style="margin: 0;">
-          Unlike most online PDF tools, DocLab Web processes everything in your browser —
-          nothing is uploaded, so no server ever sees your documents.
+          Unlike most online PDF tools, DocLab runs entirely in your browser — there's no server,
+          no upload, and no account. Your documents never leave your device.
         </p>
       </div>
       <div style="flex: 1; min-width: 260px;">
-        <p class="muted" style="margin: 0 0 14px;">
-          For OCR, true redaction, text editing, and more, get the full DocLab app — free on
-          the Microsoft Store.
+        <p class="muted" style="margin: 0 0 16px;">
+          Need OCR, true redaction, or text editing? The free DocLab desktop app adds them — same
+          privacy, more power.
         </p>
         <a class="btn btn-primary" href={STORE_URL} target="_blank" rel="noopener">Get the free desktop app →</a>
       </div>
