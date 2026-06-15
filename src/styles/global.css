@@ -168,6 +168,15 @@ code { background: var(--card); border: 1px solid var(--line); border-radius: 5p
 .ptile.sel .check { display: inline-flex; background: var(--brand); color: #fff; border-color: var(--brand); }
 .editor-cta { margin: 10px 0 0; font-size: 13.5px; }
 
+/* Stamp option panels (page numbers / watermark) */
+.stamp-panel { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 11px; background: var(--bg-elev); }
+.stamp-panel strong { font-size: 14px; }
+.stamp-panel label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.stamp-panel label.rowchk { gap: 7px; }
+.stamp-panel select.text-input, .stamp-panel input.text-input { padding: 7px 10px; font-size: 13.5px; }
+.stamp-panel input[type='range'] { accent-color: var(--brand); }
+.stamp-panel input[type='checkbox'] { accent-color: var(--brand); }
+
 /* Editor studio: thumbnail rail + large page stage */
 .studio { display: grid; grid-template-columns: 192px 1fr; gap: 14px; height: min(76vh, 860px); min-height: 520px; margin-top: 12px; }
 .rail { overflow-y: auto; overflow-x: hidden; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--bg-elev); display: flex; flex-direction: column; gap: 10px; }

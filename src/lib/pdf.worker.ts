@@ -1,5 +1,5 @@
 import * as Comlink from 'comlink';
-import { PDFDocument, PDFName, degrees } from '@cantoo/pdf-lib';
+import { PDFDocument, PDFName, StandardFonts, degrees, rgb } from '@cantoo/pdf-lib';
 import { zipSync } from 'fflate';
 
 // Runs in a Web Worker — OFF the main thread, so big jobs never freeze the
@@ -50,6 +50,20 @@ export interface ComposePage {
   index: number;
   /** Extra clockwise rotation in degrees, added to the page's own rotation. */
   rotate: number;
+}
+
+export interface PageNumberOpts {
+  /** "top|bottom" + "-left|-center|-right", e.g. "bottom-center". */
+  position: string;
+  start: number;
+  size: number;
+  format: 'plain' | 'withTotal';
+}
+
+export interface WatermarkOpts {
+  text: string;
+  size: number;
+  opacity: number;
 }
 
 const api = {
@@ -221,6 +235,49 @@ const api = {
       i = j;
     }
     return out.save();
+  },
+
+  /** Stamp a page number on every page. Position is one of
+   *  top/bottom + left/center/right. Draws in the page's user space (a page
+   *  with a /Rotate keeps its number with the rotation). */
+  async addPageNumbers(bytes: ArrayBuffer, opts: PageNumberOpts): Promise<Uint8Array> {
+    const doc = await PDFDocument.load(bytes);
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const pages = doc.getPages();
+    const total = pages.length;
+    const size = opts.size > 0 ? opts.size : 11;
+    const margin = 28;
+    pages.forEach((p, i) => {
+      const n = (opts.start || 1) + i;
+      const text = opts.format === 'withTotal' ? `${n} / ${total}` : `${n}`;
+      const tw = font.widthOfTextAtSize(text, size);
+      const { width, height } = p.getSize();
+      let x = (width - tw) / 2;
+      if (opts.position.includes('right')) x = width - tw - margin;
+      else if (opts.position.includes('left')) x = margin;
+      const y = opts.position.includes('top') ? height - margin - size : margin;
+      p.drawText(text, { x, y, size, font, color: rgb(0.1, 0.1, 0.12) });
+    });
+    return doc.save();
+  },
+
+  /** Stamp a translucent diagonal text watermark across every page. */
+  async addWatermark(bytes: ArrayBuffer, opts: WatermarkOpts): Promise<Uint8Array> {
+    const doc = await PDFDocument.load(bytes);
+    const font = await doc.embedFont(StandardFonts.HelveticaBold);
+    const pages = doc.getPages();
+    const text = (opts.text || 'DRAFT').slice(0, 80);
+    const opacity = Math.min(0.9, Math.max(0.03, opts.opacity || 0.18));
+    const angle = (Math.PI / 180) * 45;
+    for (const p of pages) {
+      const { width, height } = p.getSize();
+      const size = opts.size > 0 ? opts.size : Math.max(28, Math.min(width, height) * 0.16);
+      const tw = font.widthOfTextAtSize(text, size);
+      const x = width / 2 - (tw / 2) * Math.cos(angle) - (size / 2) * Math.sin(angle);
+      const y = height / 2 - (tw / 2) * Math.sin(angle) + (size / 2) * Math.cos(angle);
+      p.drawText(text, { x, y, size, font, color: rgb(0.5, 0.5, 0.56), opacity, rotate: degrees(45) });
+    }
+    return doc.save();
   },
 };
 
