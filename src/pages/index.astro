@@ -5,7 +5,6 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 
 const tools = [
   { href: '/merge-pdf', icon: '🗂️', title: 'Merge PDF', desc: 'Combine several PDFs into one, in any order.', live: true },
-  { href: '/organize-pdf', icon: '🔃', title: 'Organize pages', desc: 'Drag to reorder, rotate, and delete pages.', live: true },
   { href: '/split-pdf', icon: '✂️', title: 'Split PDF', desc: 'Separate pages into multiple files.', live: true },
   { href: '/rotate-pdf', icon: '🔄', title: 'Rotate PDF', desc: 'Turn pages the right way up.', live: true },
   { href: '/delete-pages', icon: '🗑️', title: 'Delete pages', desc: 'Remove pages you don’t need.', live: true },
@@ -28,7 +27,25 @@ const tools = [
   </section>
 
   <section id="tools" class="container" style="padding-top: 8px;">
-    <div class="tool-grid">
+    <a
+      class="card feature-edit"
+      href="/edit-pdf"
+      style="display: flex; gap: 22px; align-items: center; flex-wrap: wrap; text-decoration: none; color: inherit; background: linear-gradient(120deg, rgba(124,108,255,.14), rgba(168,85,247,.08)); border-color: var(--line-2);"
+    >
+      <div style="font-size: 40px; line-height: 1;">🛠️</div>
+      <div style="flex: 1; min-width: 240px;">
+        <p class="eyebrow" style="margin-bottom: 6px;">All-in-one editor</p>
+        <h2 style="margin: 0 0 6px;">Edit PDF — see every page, change anything</h2>
+        <p class="muted" style="margin: 0;">
+          Reorder, rotate, delete, duplicate, and extract pages in one visual workspace — with
+          thumbnails of your whole document. Then download.
+        </p>
+      </div>
+      <span class="btn btn-primary" style="flex-shrink: 0;">Open the editor →</span>
+    </a>
+
+    <h2 style="font-size: 19px; margin: 36px 0 0;">Or jump to a single task</h2>
+    <div class="tool-grid" style="margin-top: 16px;">
       {
         tools.map((t) => (
           <a class="tool" href={t.live ? t.href : '#'} aria-disabled={!t.live}>

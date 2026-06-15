@@ -1,22 +1,22 @@
 ---
 import Base from '../layouts/Base.astro';
-import OrganizeTool from '../components/OrganizeTool.astro';
+import EditorTool from '../components/EditorTool.astro';
 ---
 
 <Base
   title="Organize PDF — reorder, rotate & delete pages | DocLab"
-  description="Visually reorder, rotate, and delete PDF pages with drag-and-drop thumbnails. Free and entirely in your browser — your file is never uploaded."
+  description="Visually reorder, rotate, delete, and extract PDF pages with drag-and-drop thumbnails. Free and entirely in your browser — your file is never uploaded."
 >
   <section class="container tool-head">
     <p class="eyebrow"><a href="/" style="color: var(--brand); text-decoration: none;">← All tools</a></p>
     <h1>Organize PDF</h1>
     <p class="lead">
-      See every page as a thumbnail, drag to reorder, and rotate or delete any page — then
-      download the result. Runs in your browser; your file is never uploaded.
+      See every page as a thumbnail, drag to reorder, and rotate, delete, duplicate or extract any
+      page — then download. Runs in your browser; your file is never uploaded.
     </p>
   </section>
 
   <section class="container" style="padding-top: 8px;">
-    <OrganizeTool />
+    <EditorTool />
   </section>
 </Base>
