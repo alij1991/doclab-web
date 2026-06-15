@@ -1,5 +1,5 @@
 import * as Comlink from 'comlink';
-import { PDFDocument, PDFName, StandardFonts, degrees, rgb } from '@cantoo/pdf-lib';
+import { PDFDocument, PDFName, StandardFonts, LineCapStyle, degrees, rgb } from '@cantoo/pdf-lib';
 import { zipSync } from 'fflate';
 
 // Runs in a Web Worker — OFF the main thread, so big jobs never freeze the
@@ -65,6 +65,15 @@ export interface WatermarkOpts {
   size: number;
   opacity: number;
 }
+
+// Annotations — all geometry in PDF user space (points, origin bottom-left),
+// rgb channels 0..1. The editor maps screen points via pdf.js convertToPdfPoint.
+export type Annot =
+  | { kind: 'ink'; points: number[]; rgb: [number, number, number]; width: number } // flat [x0,y0,x1,y1,...]
+  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; rgb: [number, number, number]; width: number }
+  | { kind: 'rect'; x: number; y: number; w: number; h: number; rgb: [number, number, number]; width: number }
+  | { kind: 'highlight'; x: number; y: number; w: number; h: number; rgb: [number, number, number]; opacity: number }
+  | { kind: 'text'; x: number; y: number; text: string; size: number; rgb: [number, number, number] };
 
 const api = {
   /** Page count for one PDF. Throws on encrypted/invalid (the UI surfaces it). */
@@ -276,6 +285,57 @@ const api = {
       const x = width / 2 - (tw / 2) * Math.cos(angle) - (size / 2) * Math.sin(angle);
       const y = height / 2 - (tw / 2) * Math.sin(angle) + (size / 2) * Math.cos(angle);
       p.drawText(text, { x, y, size, font, color: rgb(0.5, 0.5, 0.56), opacity, rotate: degrees(45) });
+    }
+    return doc.save();
+  },
+
+  /** Bake annotations onto pages. `perPage[i]` is the annotation list for
+   *  output page i (PDF user-space coords). */
+  async drawAnnotations(bytes: ArrayBuffer, perPage: Annot[][]): Promise<Uint8Array> {
+    const doc = await PDFDocument.load(bytes);
+    const pages = doc.getPages();
+    let font: Awaited<ReturnType<typeof doc.embedFont>> | null = null;
+    for (let i = 0; i < pages.length; i++) {
+      const annots = perPage[i];
+      if (!annots || annots.length === 0) continue;
+      const page = pages[i]!;
+      for (const a of annots) {
+        if (a.kind === 'ink') {
+          const p = a.points;
+          for (let j = 0; j + 3 < p.length; j += 2) {
+            page.drawLine({
+              start: { x: p[j]!, y: p[j + 1]! },
+              end: { x: p[j + 2]!, y: p[j + 3]! },
+              thickness: a.width,
+              color: rgb(a.rgb[0], a.rgb[1], a.rgb[2]),
+              lineCap: LineCapStyle.Round,
+            });
+          }
+        } else if (a.kind === 'line') {
+          page.drawLine({
+            start: { x: a.x1, y: a.y1 },
+            end: { x: a.x2, y: a.y2 },
+            thickness: a.width,
+            color: rgb(a.rgb[0], a.rgb[1], a.rgb[2]),
+            lineCap: LineCapStyle.Round,
+          });
+        } else if (a.kind === 'rect') {
+          page.drawRectangle({
+            x: a.x, y: a.y, width: a.w, height: a.h,
+            borderColor: rgb(a.rgb[0], a.rgb[1], a.rgb[2]),
+            borderWidth: a.width,
+          });
+        } else if (a.kind === 'highlight') {
+          page.drawRectangle({
+            x: a.x, y: a.y, width: a.w, height: a.h,
+            color: rgb(a.rgb[0], a.rgb[1], a.rgb[2]),
+            opacity: a.opacity,
+          });
+        } else if (a.kind === 'text') {
+          if (!font) font = await doc.embedFont(StandardFonts.Helvetica);
+          page.drawText(a.text, { x: a.x, y: a.y, size: a.size, font, color: rgb(a.rgb[0], a.rgb[1], a.rgb[2]) });
+        }
+      }
     }
     return doc.save();
   },

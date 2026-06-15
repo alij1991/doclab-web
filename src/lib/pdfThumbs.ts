@@ -21,7 +21,10 @@ export interface ThumbDoc {
    *  `maxPx` on the long edge, with `extraRotation` added to intrinsic rotation. */
   render(pageIndex: number, canvas: HTMLCanvasElement, maxPx: number, extraRotation: number): Promise<void>;
   /** Big main view: fit the page to `cssWidth` CSS px times `zoom`, rendered at
-   *  device resolution (DPR-aware) and sized via canvas.style for crispness. */
+   *  device resolution (DPR-aware) and sized via canvas.style for crispness.
+   *  Returns the displayed size plus screen<->PDF coordinate converters
+   *  (CSS px in the displayed page <-> PDF user-space points), which account
+   *  for rotation and zoom — used by the annotation layer. */
   renderWidth(
     pageIndex: number,
     canvas: HTMLCanvasElement,
@@ -29,8 +32,19 @@ export interface ThumbDoc {
     zoom: number,
     extraRotation: number,
     dpr: number,
-  ): Promise<{ cssWidth: number; cssHeight: number }>;
+  ): Promise<PageView>;
   destroy(): void;
+}
+
+export interface PageView {
+  cssWidth: number;
+  cssHeight: number;
+  /** CSS px per PDF point (for converting stroke widths). */
+  scale: number;
+  /** displayed CSS px (top-left origin) -> PDF user-space point (bottom-left). */
+  toPdf(xCss: number, yCss: number): [number, number];
+  /** PDF user-space point -> displayed CSS px. */
+  toView(px: number, py: number): [number, number];
 }
 
 export async function openForThumbs(bytes: ArrayBuffer): Promise<ThumbDoc> {
@@ -73,12 +87,26 @@ export async function openForThumbs(bytes: ArrayBuffer): Promise<ThumbDoc> {
         const dispH = unit.height * cssScale;
         const renderScale = cssScale * Math.min(Math.max(dpr, 1), 2);
         const viewport = page.getViewport({ scale: renderScale, rotation });
+        // CSS-space viewport for screen<->PDF coordinate conversion (annotations).
+        const cssViewport = page.getViewport({ scale: cssScale, rotation });
         canvas.width = Math.max(1, Math.ceil(viewport.width));
         canvas.height = Math.max(1, Math.ceil(viewport.height));
         canvas.style.width = Math.round(dispW) + 'px';
         canvas.style.height = Math.round(dispH) + 'px';
         await page.render({ canvas, viewport }).promise;
-        return { cssWidth: dispW, cssHeight: dispH };
+        return {
+          cssWidth: dispW,
+          cssHeight: dispH,
+          scale: cssScale,
+          toPdf: (x: number, y: number) => {
+            const [px, py] = cssViewport.convertToPdfPoint(x, y);
+            return [px, py] as [number, number];
+          },
+          toView: (px: number, py: number) => {
+            const [x, y] = cssViewport.convertToViewportPoint(px, py);
+            return [x, y] as [number, number];
+          },
+        };
       } finally {
         page.cleanup();
       }

@@ -50,6 +50,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       </div>
       <span class="bar-div"></span>
       <div class="bar-group" aria-label="Tools">
+        <button type="button" id="annBtn" class="btn-icon" title="Annotate: draw, highlight, text, shapes">✎ Annotate</button>
         <button type="button" id="numBtn" class="btn-icon" title="Add page numbers">＃ Numbers</button>
         <button type="button" id="wmBtn" class="btn-icon" title="Add a watermark">💧 Watermark</button>
         <button type="button" id="imgBtn" class="btn-icon" title="Export pages as images">🖼 Images</button>
@@ -64,7 +65,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 
       <section class="stage">
         <div id="stageScroll" class="stage-scroll">
-          <canvas id="bigCanvas" hidden></canvas>
+          <div id="pageWrap" class="page-wrap" hidden>
+            <canvas id="bigCanvas"></canvas>
+            <canvas id="annotCanvas" class="annot-canvas"></canvas>
+            <div id="textLayer" class="text-layer"></div>
+          </div>
           <p id="stageEmpty" class="stage-empty">Loading page…</p>
         </div>
         <div class="stage-bar">
@@ -84,6 +89,34 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       </section>
 
       <aside id="toolPanel" class="toolpanel" hidden aria-label="Tool options">
+        <div class="tp-section" data-tp="ann" hidden>
+          <div class="tp-head"><strong>Annotate</strong><button type="button" class="tp-close" data-close aria-label="Close">✕</button></div>
+          <div class="atools" role="group" aria-label="Annotation tool">
+            <button type="button" class="atool active" data-atool="pen">✏ Draw</button>
+            <button type="button" class="atool" data-atool="highlight">🖍 Highlight</button>
+            <button type="button" class="atool" data-atool="text">T Text</button>
+            <button type="button" class="atool" data-atool="rect">▭ Box</button>
+            <button type="button" class="atool" data-atool="line">／ Line</button>
+          </div>
+          <div class="tp-field">Color
+            <span class="swatches" id="annSwatches">
+              <button type="button" class="sw active" data-color="0,0,0" style="background:#111" aria-label="Black"></button>
+              <button type="button" class="sw" data-color="0.9,0.12,0.12" style="background:#e21f1f" aria-label="Red"></button>
+              <button type="button" class="sw" data-color="0.13,0.33,0.9" style="background:#2154e6" aria-label="Blue"></button>
+              <button type="button" class="sw" data-color="0.12,0.6,0.22" style="background:#1f9b38" aria-label="Green"></button>
+              <button type="button" class="sw" data-color="1,0.84,0" style="background:#ffd700" aria-label="Yellow"></button>
+              <button type="button" class="sw" data-color="1,1,1" style="background:#fff" aria-label="White"></button>
+            </span>
+          </div>
+          <label class="tp-field" id="annWidthField">Thickness <input id="annWidth" type="range" min="1" max="12" value="3" /></label>
+          <label class="tp-field" id="annSizeField" hidden>Text size <input id="annTextSize" type="number" min="6" max="96" value="16" class="text-input" /></label>
+          <div class="tp-row">
+            <button type="button" id="annUndo" class="btn btn-ghost btn-sm" style="flex:1;">Undo</button>
+            <button type="button" id="annClear" class="btn btn-ghost btn-sm" style="flex:1;">Clear page</button>
+          </div>
+          <p class="muted" style="font-size: 12px; margin: 0;">Annotations bake into the PDF on Download / Extract / To-images.</p>
+        </div>
+
         <div class="tp-section" data-tp="num" hidden>
           <div class="tp-head"><strong>Page numbers</strong><button type="button" class="tp-close" data-close aria-label="Close">✕</button></div>
           <label class="tp-field">Position
@@ -143,7 +176,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 
 <script>
   import { pdfApi } from '../lib/pdfClient';
-  import { openForThumbs, type ThumbDoc } from '../lib/pdfThumbs';
+  import { openForThumbs, type ThumbDoc, type PageView } from '../lib/pdfThumbs';
+  import type { Annot } from '../lib/pdf.worker';
 
   const THUMB_PX = 180;
   const $ = (id: string) => document.getElementById(id)!;
@@ -178,6 +212,9 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const zoomInBtn = $('zoomInBtn') as HTMLButtonElement;
   const zoomOutBtn = $('zoomOutBtn') as HTMLButtonElement;
   const zoomFitBtn = $('zoomFitBtn') as HTMLButtonElement;
+  const pageWrap = $('pageWrap');
+  const annotCanvas = $('annotCanvas') as HTMLCanvasElement;
+  const textLayer = $('textLayer');
 
   interface Tile { sourceId: string; src: number; rotate: number; }
 
@@ -195,6 +232,16 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   let renderChain: Promise<void> = Promise.resolve();
   let bigToken = 0;
   let observer: IntersectionObserver | null = null;
+
+  // annotations: per-tile list, stored in PDF user-space coordinates
+  const annots = new Map<string, Annot[]>();
+  let curView: PageView | null = null; // converters for the active page render
+  let annTool: 'pen' | 'highlight' | 'text' | 'rect' | 'line' = 'pen';
+  let annRgb: [number, number, number] = [0, 0, 0];
+  let annStroke = 3;
+  let annTextSize = 16;
+  let annotateMode = false;
+  const actx = annotCanvas.getContext('2d');
 
   function setStatus(msg: string, kind: '' | 'ok' | 'err' = '') {
     statusEl.textContent = msg;
@@ -276,7 +323,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const s = activeId ? state.get(activeId) : undefined;
     const doc = s ? docFor(s.sourceId) : undefined;
     if (!s || !doc) {
-      bigCanvas.hidden = true;
+      pageWrap.hidden = true;
+      curView = null;
       stageEmpty.hidden = false;
       stageEmpty.textContent = 'No page';
       return;
@@ -285,13 +333,93 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const cssWidth = Math.max(200, stageScroll.clientWidth - 44);
     const dpr = window.devicePixelRatio || 1;
     try {
-      await doc.renderWidth(s.src, bigCanvas, cssWidth, zoom, s.rotate, dpr);
+      const pv = await doc.renderWidth(s.src, bigCanvas, cssWidth, zoom, s.rotate, dpr);
       if (token !== bigToken) return; // a newer render superseded this one
-      bigCanvas.hidden = false;
+      curView = pv;
+      pageWrap.hidden = false;
       stageEmpty.hidden = true;
+      // size the annotation overlay to match the page canvas, then paint
+      const dprc = Math.min(Math.max(dpr, 1), 2);
+      annotCanvas.width = Math.max(1, Math.round(pv.cssWidth * dprc));
+      annotCanvas.height = Math.max(1, Math.round(pv.cssHeight * dprc));
+      annotCanvas.style.width = Math.round(pv.cssWidth) + 'px';
+      annotCanvas.style.height = Math.round(pv.cssHeight) + 'px';
+      redrawOverlay();
     } catch (e) {
       console.error('[big render]', e);
-      if (token === bigToken) { stageEmpty.hidden = false; stageEmpty.textContent = 'Preview unavailable'; }
+      if (token === bigToken) { pageWrap.hidden = true; stageEmpty.hidden = false; stageEmpty.textContent = 'Preview unavailable'; }
+    }
+  }
+
+  function curAnnots(): Annot[] {
+    if (!activeId) return [];
+    let list = annots.get(activeId);
+    if (!list) { list = []; annots.set(activeId, list); }
+    return list;
+  }
+
+  // Paint committed annotations (+ an optional in-progress one) on the overlay,
+  // converting PDF coords back to screen via the active page's converters.
+  function redrawOverlay(preview?: Annot) {
+    if (!actx) return;
+    const dprc = annotCanvas.width / Math.max(1, parseFloat(annotCanvas.style.width));
+    actx.setTransform(dprc, 0, 0, dprc, 0, 0);
+    actx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
+    if (!curView) return;
+    const list = activeId ? annots.get(activeId) ?? [] : [];
+    for (const a of list) paintAnnot(a);
+    if (preview) paintAnnot(preview);
+  }
+
+  function paintAnnot(a: Annot) {
+    if (!actx || !curView) return;
+    const sc = curView.scale;
+    const css = (px: number, py: number) => curView!.toView(px, py);
+    const col = (rgb: [number, number, number], alpha = 1) =>
+      `rgba(${Math.round(rgb[0] * 255)},${Math.round(rgb[1] * 255)},${Math.round(rgb[2] * 255)},${alpha})`;
+    if (a.kind === 'ink') {
+      actx.strokeStyle = col(a.rgb);
+      actx.lineWidth = a.width * sc;
+      actx.lineJoin = 'round';
+      actx.lineCap = 'round';
+      actx.beginPath();
+      for (let i = 0; i + 1 < a.points.length; i += 2) {
+        const [x, y] = css(a.points[i]!, a.points[i + 1]!);
+        if (i === 0) actx.moveTo(x, y);
+        else actx.lineTo(x, y);
+      }
+      actx.stroke();
+    } else if (a.kind === 'line') {
+      actx.strokeStyle = col(a.rgb);
+      actx.lineWidth = a.width * sc;
+      actx.lineCap = 'round';
+      const [x1, y1] = css(a.x1, a.y1);
+      const [x2, y2] = css(a.x2, a.y2);
+      actx.beginPath();
+      actx.moveTo(x1, y1);
+      actx.lineTo(x2, y2);
+      actx.stroke();
+    } else if (a.kind === 'rect' || a.kind === 'highlight') {
+      const [x1, y1] = css(a.x, a.y);
+      const [x2, y2] = css(a.x + a.w, a.y + a.h);
+      const rx = Math.min(x1, x2);
+      const ry = Math.min(y1, y2);
+      const rw = Math.abs(x2 - x1);
+      const rh = Math.abs(y2 - y1);
+      if (a.kind === 'highlight') {
+        actx.fillStyle = col(a.rgb, a.opacity);
+        actx.fillRect(rx, ry, rw, rh);
+      } else {
+        actx.strokeStyle = col(a.rgb);
+        actx.lineWidth = a.width * sc;
+        actx.strokeRect(rx, ry, rw, rh);
+      }
+    } else if (a.kind === 'text') {
+      const [x, y] = css(a.x, a.y);
+      actx.fillStyle = col(a.rgb);
+      actx.font = `${a.size * sc}px Helvetica, Arial, sans-serif`;
+      actx.textBaseline = 'alphabetic';
+      actx.fillText(a.text, x, y);
     }
   }
 
@@ -410,6 +538,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       state.delete(id);
       rendered.delete(id);
       selected.delete(id);
+      annots.delete(id);
     }
     anchor = null;
     renumber();
@@ -428,6 +557,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       const el = els.get(id)!;
       const dupId = newId('d');
       state.set(dupId, { sourceId: s.sourceId, src: s.src, rotate: s.rotate });
+      const srcAnn = annots.get(id);
+      if (srcAnn && srcAnn.length) annots.set(dupId, JSON.parse(JSON.stringify(srcAnn)));
       el.after(buildTile(dupId));
       rendered.add(dupId);
       queueRender(dupId);
@@ -452,12 +583,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 
   async function exportPages(ids: string[], suffix: string, label: string) {
     if (ids.length === 0) return;
-    const { srcArr, pages } = currentSourcesAndPages(ids);
     downloadBtn.disabled = true;
     extractBtn.disabled = true;
     setStatus('Building your PDF…');
     try {
-      const out = await pdfApi().compose(srcArr, pages);
+      const out = await composeBaked(ids);
       download(out, `${baseName()}-${suffix}.pdf`);
       setStatus(`${label} — your download should start automatically.`, 'ok');
     } catch (e) {
@@ -489,7 +619,10 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     zoom = 1;
     zoomVal.textContent = '100%';
     rail.replaceChildren();
-    bigCanvas.hidden = true;
+    pageWrap.hidden = true;
+    curView = null;
+    annots.clear();
+    textLayer.replaceChildren();
     renderChain = Promise.resolve();
     refreshSelectionUI();
   }
@@ -564,6 +697,15 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     return { srcArr, pages };
   }
 
+  // Compose the given tiles into one PDF and bake any annotations on them.
+  async function composeBaked(ids: string[]): Promise<Uint8Array> {
+    const { srcArr, pages } = currentSourcesAndPages(ids);
+    let out = await pdfApi().compose(srcArr, pages);
+    const perPage = ids.map((id) => annots.get(id) ?? []);
+    if (perPage.some((a) => a.length)) out = await pdfApi().drawAnnotations(toAB(out), perPage);
+    return out;
+  }
+
   // Render the current edited document's pages to PNG/JPG and download (a zip
   // when there's more than one page). Rendering is pdf.js on the main thread.
   async function exportImages(format: 'png' | 'jpg', longPx: number) {
@@ -572,8 +714,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     setStatus('Rendering images…');
     let doc: ThumbDoc | null = null;
     try {
-      const { srcArr, pages } = currentSourcesAndPages(ids);
-      const composed = await pdfApi().compose(srcArr, pages);
+      const composed = await composeBaked(ids);
       doc = await openForThumbs(toAB(composed));
       const mime = format === 'png' ? 'image/png' : 'image/jpeg';
       const pad = String(doc.pageCount).length;
@@ -609,8 +750,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     if (ids.length === 0) return;
     setStatus('Applying…');
     try {
-      const { srcArr, pages } = currentSourcesAndPages(ids);
-      const composed = await pdfApi().compose(srcArr, pages);
+      const composed = await composeBaked(ids);
       const stamped = await fn(toAB(composed));
       if (await installSingleSource(toAB(stamped), fileName, false)) setStatus(doneMsg, 'ok');
     } catch (e) {
@@ -706,19 +846,125 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const studioEl = $('studio');
   const toolPanel = $('toolPanel');
   const tpSections = [...toolPanel.querySelectorAll<HTMLElement>('.tp-section')];
-  let curTool: '' | 'num' | 'wm' | 'img' = '';
-  function showPanel(which: '' | 'num' | 'wm' | 'img') {
+  let curTool: '' | 'num' | 'wm' | 'img' | 'ann' = '';
+  function showPanel(which: '' | 'num' | 'wm' | 'img' | 'ann') {
     curTool = which;
     const open = which !== '';
     toolPanel.hidden = !open;
     studioEl.classList.toggle('panel-open', open);
+    annotateMode = which === 'ann';
+    studioEl.classList.toggle('annotating', annotateMode);
     for (const s of tpSections) s.hidden = s.dataset.tp !== which;
     renderBig(); // stage width changed — re-fit the page
   }
+  $('annBtn').addEventListener('click', () => showPanel(curTool === 'ann' ? '' : 'ann'));
   $('numBtn').addEventListener('click', () => showPanel(curTool === 'num' ? '' : 'num'));
   $('wmBtn').addEventListener('click', () => showPanel(curTool === 'wm' ? '' : 'wm'));
   $('imgBtn').addEventListener('click', () => showPanel(curTool === 'img' ? '' : 'img'));
   toolPanel.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => showPanel('')));
+
+  // --- annotation controls + drawing ---
+  document.querySelectorAll<HTMLButtonElement>('.atool').forEach((b) =>
+    b.addEventListener('click', () => {
+      annTool = (b.dataset.atool ?? 'pen') as typeof annTool;
+      document.querySelectorAll('.atool').forEach((x) => x.classList.toggle('active', x === b));
+      $('annWidthField').hidden = annTool === 'text';
+      $('annSizeField').hidden = annTool !== 'text';
+      // a sensible default color for highlight
+      if (annTool === 'highlight') setSwatch([1, 0.84, 0]);
+    }),
+  );
+  function setSwatch(rgb: [number, number, number]) {
+    annRgb = rgb;
+    document.querySelectorAll<HTMLButtonElement>('#annSwatches .sw').forEach((s) => {
+      const c = (s.dataset.color ?? '').split(',').map(Number);
+      s.classList.toggle('active', c[0] === rgb[0] && c[1] === rgb[1] && c[2] === rgb[2]);
+    });
+  }
+  document.querySelectorAll<HTMLButtonElement>('#annSwatches .sw').forEach((s) =>
+    s.addEventListener('click', () => {
+      const c = (s.dataset.color ?? '0,0,0').split(',').map(Number) as [number, number, number];
+      setSwatch(c);
+    }),
+  );
+  ($('annWidth') as HTMLInputElement).addEventListener('input', (e) => { annStroke = parseInt((e.target as HTMLInputElement).value, 10) || 3; });
+  ($('annTextSize') as HTMLInputElement).addEventListener('input', (e) => { annTextSize = parseInt((e.target as HTMLInputElement).value, 10) || 16; });
+  $('annUndo').addEventListener('click', () => { const l = curAnnots(); if (l.length) { l.pop(); redrawOverlay(); } });
+  $('annClear').addEventListener('click', () => { if (activeId) { annots.set(activeId, []); redrawOverlay(); } });
+
+  // pointer drawing on the overlay
+  let drawing = false;
+  let inkPts: number[] = [];
+  let startPt: [number, number] | null = null;
+  const overlayXY = (e: PointerEvent): [number, number] => {
+    const r = annotCanvas.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  };
+  annotCanvas.addEventListener('pointerdown', (e) => {
+    if (!annotateMode || !curView) return;
+    if (annTool === 'text') { placeTextInput(overlayXY(e)); return; }
+    drawing = true;
+    annotCanvas.setPointerCapture(e.pointerId);
+    const [cx, cy] = overlayXY(e);
+    const [px, py] = curView.toPdf(cx, cy);
+    if (annTool === 'pen') inkPts = [px, py];
+    else startPt = [px, py];
+  });
+  annotCanvas.addEventListener('pointermove', (e) => {
+    if (!drawing || !curView) return;
+    const [cx, cy] = overlayXY(e);
+    const [px, py] = curView.toPdf(cx, cy);
+    if (annTool === 'pen') {
+      inkPts.push(px, py);
+      redrawOverlay({ kind: 'ink', points: inkPts, rgb: annRgb, width: annStroke });
+    } else if (startPt) {
+      redrawOverlay(previewShape(startPt, [px, py]));
+    }
+  });
+  function commit(a: Annot) { curAnnots().push(a); redrawOverlay(); }
+  function previewShape(a: [number, number], b: [number, number]): Annot {
+    if (annTool === 'line') return { kind: 'line', x1: a[0], y1: a[1], x2: b[0], y2: b[1], rgb: annRgb, width: annStroke };
+    const x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]), w = Math.abs(b[0] - a[0]), h = Math.abs(b[1] - a[1]);
+    if (annTool === 'highlight') return { kind: 'highlight', x, y, w, h, rgb: annRgb, opacity: 0.35 };
+    return { kind: 'rect', x, y, w, h, rgb: annRgb, width: annStroke };
+  }
+  annotCanvas.addEventListener('pointerup', (e) => {
+    if (!drawing || !curView) return;
+    drawing = false;
+    const [cx, cy] = overlayXY(e);
+    const [px, py] = curView.toPdf(cx, cy);
+    if (annTool === 'pen') { if (inkPts.length >= 4) commit({ kind: 'ink', points: inkPts, rgb: annRgb, width: annStroke }); inkPts = []; }
+    else if (startPt) {
+      const dx = Math.abs(px - startPt[0]), dy = Math.abs(py - startPt[1]);
+      if (dx > 2 || dy > 2) commit(previewShape(startPt, [px, py]));
+      startPt = null;
+      redrawOverlay();
+    }
+  });
+  function placeTextInput([cx, cy]: [number, number]) {
+    if (!curView) return;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.style.left = cx + 'px';
+    input.style.top = cy - (annTextSize * curView.scale) + 'px';
+    input.style.fontSize = annTextSize * curView.scale + 'px';
+    input.style.color = `rgb(${Math.round(annRgb[0] * 255)},${Math.round(annRgb[1] * 255)},${Math.round(annRgb[2] * 255)})`;
+    textLayer.appendChild(input);
+    input.focus();
+    const done = (keep: boolean) => {
+      const text = input.value.trim();
+      input.remove();
+      if (keep && text && curView) {
+        const [px, py] = curView.toPdf(cx, cy);
+        commit({ kind: 'text', x: px, y: py, text, size: annTextSize, rgb: annRgb });
+      }
+    };
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); done(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); done(false); }
+    });
+    input.addEventListener('blur', () => done(true));
+  }
   $('imgApply').addEventListener('click', () => {
     const format = ($('imgFormat') as HTMLSelectElement).value === 'jpg' ? 'jpg' : 'png';
     const longPx = parseInt(($('imgQuality') as HTMLSelectElement).value, 10) || 2000;
