@@ -279,6 +279,14 @@ const api = {
     }
     return doc.save();
   },
+
+  /** Zip already-encoded files (e.g. page images). Store-only — images are
+   *  already compressed. */
+  zipFiles(entries: { name: string; bytes: Uint8Array }[]): Uint8Array {
+    const files: Record<string, Uint8Array> = {};
+    for (const e of entries) files[e.name] = e.bytes;
+    return zipSync(files, { level: 0 });
+  },
 };
 
 export type PdfApi = typeof api;

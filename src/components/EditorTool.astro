@@ -45,6 +45,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
         <button type="button" id="delBtn" class="btn-icon danger" title="Delete (selected or current page)">🗑 Delete</button>
         <button type="button" id="numBtn" class="btn-icon" title="Add page numbers">＃ Numbers</button>
         <button type="button" id="wmBtn" class="btn-icon" title="Add a watermark">💧 Watermark</button>
+        <button type="button" id="imgBtn" class="btn-icon" title="Export pages as images">🖼 To images</button>
       </div>
       <div class="bar-right">
         <button type="button" id="downloadBtn" class="btn btn-primary btn-sm">Download PDF</button>
@@ -77,6 +78,25 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       <label>Opacity <input id="wmOpacity" type="range" min="5" max="80" value="18" /></label>
       <button type="button" id="wmApply" class="btn btn-primary btn-sm">Add watermark</button>
       <button type="button" id="wmCancel" class="btn btn-ghost btn-sm">Cancel</button>
+    </div>
+
+    <div id="imgPanel" class="stamp-panel" hidden>
+      <strong>Export as images</strong>
+      <label>Format
+        <select id="imgFormat" class="text-input">
+          <option value="png" selected>PNG</option>
+          <option value="jpg">JPG</option>
+        </select>
+      </label>
+      <label>Quality
+        <select id="imgQuality" class="text-input">
+          <option value="1240">Standard</option>
+          <option value="2000" selected>High</option>
+        </select>
+      </label>
+      <span class="muted" style="font-size: 12.5px;">Multiple pages download as a .zip.</span>
+      <button type="button" id="imgApply" class="btn btn-primary btn-sm">Export images</button>
+      <button type="button" id="imgCancel" class="btn btn-ghost btn-sm">Cancel</button>
     </div>
     <p class="org-hint">
       Click a page to open it big · <strong>Shift</strong>-click for a range · <strong>Ctrl/⌘</strong>-click to add ·
@@ -411,10 +431,10 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     setStatus(`Duplicated ${ordered.length} page${ordered.length === 1 ? '' : 's'}.`, 'ok');
   }
 
-  function download(out: Uint8Array, name: string) {
+  function download(out: Uint8Array, name: string, mime = 'application/pdf') {
     const ab = new ArrayBuffer(out.byteLength);
     new Uint8Array(ab).set(out);
-    const url = URL.createObjectURL(new Blob([ab], { type: 'application/pdf' }));
+    const url = URL.createObjectURL(new Blob([ab], { type: mime }));
     const a = document.createElement('a');
     a.href = url;
     a.download = name;
@@ -538,6 +558,44 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     return { srcArr, pages };
   }
 
+  // Render the current edited document's pages to PNG/JPG and download (a zip
+  // when there's more than one page). Rendering is pdf.js on the main thread.
+  async function exportImages(format: 'png' | 'jpg', longPx: number) {
+    const ids = orderedIds();
+    if (ids.length === 0) return;
+    setStatus('Rendering images…');
+    let doc: ThumbDoc | null = null;
+    try {
+      const { srcArr, pages } = currentSourcesAndPages(ids);
+      const composed = await pdfApi().compose(srcArr, pages);
+      doc = await openForThumbs(toAB(composed));
+      const mime = format === 'png' ? 'image/png' : 'image/jpeg';
+      const pad = String(doc.pageCount).length;
+      const canvas = document.createElement('canvas');
+      const entries: { name: string; bytes: Uint8Array }[] = [];
+      for (let i = 0; i < doc.pageCount; i++) {
+        await doc.render(i, canvas, longPx, 0);
+        const blob: Blob = await new Promise((res, rej) =>
+          canvas.toBlob((b) => (b ? res(b) : rej(new Error('Could not encode image'))), mime, 0.92),
+        );
+        entries.push({ name: `${baseName()}-${String(i + 1).padStart(pad, '0')}.${format}`, bytes: new Uint8Array(await blob.arrayBuffer()) });
+        setStatus(`Rendering images… ${i + 1}/${doc.pageCount}`);
+      }
+      if (entries.length === 1) {
+        download(entries[0]!.bytes, entries[0]!.name, mime);
+      } else {
+        const zip = await pdfApi().zipFiles(entries);
+        download(zip, `${baseName()}-images.zip`, 'application/zip');
+      }
+      setStatus(`Exported ${entries.length} image${entries.length === 1 ? '' : 's'} — your download should start automatically.`, 'ok');
+    } catch (e) {
+      console.error(e);
+      setStatus(shortError(e), 'err');
+    } finally {
+      doc?.destroy();
+    }
+  }
+
   // Bake the current edits into one PDF, run a transform, and reload it so the
   // result is visible and further editing continues on the stamped document.
   async function applyTransform(fn: (bytes: ArrayBuffer) => Promise<Uint8Array>, doneMsg: string) {
@@ -638,14 +696,23 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   extractBtn.addEventListener('click', () => exportPages(selectedOrdered(), 'extract', 'Extracted selected pages'));
   downloadBtn.addEventListener('click', () => exportPages(orderedIds(), 'edited', 'Done'));
 
-  // stamp panels (page numbers + watermark)
-  const numPanel = $('numPanel');
-  const wmPanel = $('wmPanel');
-  const showPanel = (which: '' | 'num' | 'wm') => { numPanel.hidden = which !== 'num'; wmPanel.hidden = which !== 'wm'; };
-  $('numBtn').addEventListener('click', () => showPanel(numPanel.hidden ? 'num' : ''));
-  $('wmBtn').addEventListener('click', () => showPanel(wmPanel.hidden ? 'wm' : ''));
+  // option panels (page numbers / watermark / export images)
+  const panelMap: Record<string, HTMLElement> = { num: $('numPanel'), wm: $('wmPanel'), img: $('imgPanel') };
+  const showPanel = (which: '' | 'num' | 'wm' | 'img') => {
+    for (const k of Object.keys(panelMap)) panelMap[k]!.hidden = k !== which;
+  };
+  $('numBtn').addEventListener('click', () => showPanel(panelMap.num!.hidden ? 'num' : ''));
+  $('wmBtn').addEventListener('click', () => showPanel(panelMap.wm!.hidden ? 'wm' : ''));
+  $('imgBtn').addEventListener('click', () => showPanel(panelMap.img!.hidden ? 'img' : ''));
   $('numCancel').addEventListener('click', () => showPanel(''));
   $('wmCancel').addEventListener('click', () => showPanel(''));
+  $('imgCancel').addEventListener('click', () => showPanel(''));
+  $('imgApply').addEventListener('click', () => {
+    const format = ($('imgFormat') as HTMLSelectElement).value === 'jpg' ? 'jpg' : 'png';
+    const longPx = parseInt(($('imgQuality') as HTMLSelectElement).value, 10) || 2000;
+    showPanel('');
+    exportImages(format, longPx);
+  });
   $('numApply').addEventListener('click', () => {
     const opts = {
       position: ($('numPos') as HTMLSelectElement).value,
