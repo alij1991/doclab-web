@@ -19,93 +19,50 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   </div>
 
   <div id="workspace" hidden>
-    <div class="filerow" style="margin: 22px 0 0;">
+    <div class="ed-filebar">
       <div class="meta">
-        <div class="name" id="fileName"></div>
-        <div class="sub" id="fileSub"></div>
+        <span class="name" id="fileName"></span>
+        <span class="sub" id="fileSub"></span>
       </div>
-      <button type="button" id="resetBtn" class="btn-icon" aria-label="Choose a different file">✕</button>
+      <button type="button" id="resetBtn" class="btn-ghost btn-sm" aria-label="Open a different file">Open another</button>
     </div>
 
-    <p id="warn" class="warn" hidden style="margin-top: 14px;"></p>
+    <p id="warn" class="warn" hidden style="margin: 0 0 10px;"></p>
 
-    <div class="editor-bar">
-      <div class="selinfo">
+    <div class="editor-bar" role="toolbar" aria-label="Editor actions">
+      <div class="bar-group selinfo">
         <span id="selCount" class="sc">No pages selected</span>
-        <button type="button" id="selectAllBtn" class="linklike">Select all</button>
-        <button type="button" id="clearSelBtn" class="linklike" disabled>Clear</button>
+        <button type="button" id="selectAllBtn" class="linklike">All</button>
+        <button type="button" id="clearSelBtn" class="linklike" disabled>None</button>
       </div>
-      <div class="bar-actions">
-        <button type="button" id="addBtn" class="btn-icon" title="Add pages from another PDF or from images">➕ Add pages</button>
+      <span class="bar-div"></span>
+      <div class="bar-group">
+        <button type="button" id="addBtn" class="btn-icon" title="Add pages from another PDF or from images">＋ Add</button>
         <input id="addInput" type="file" accept="application/pdf,.pdf,image/jpeg,image/png" multiple class="visually-hidden" tabindex="-1" aria-hidden="true" />
-        <button type="button" id="rotLBtn" class="btn-icon" title="Rotate left (selected or current page)">⟲ Left</button>
-        <button type="button" id="rotRBtn" class="btn-icon" title="Rotate right (selected or current page)">⟳ Right</button>
-        <button type="button" id="dupBtn" class="btn-icon" title="Duplicate (selected or current page)">⧉ Duplicate</button>
+      </div>
+      <span class="bar-div"></span>
+      <div class="bar-group" aria-label="Page actions">
+        <button type="button" id="rotLBtn" class="btn-icon" title="Rotate left (selected or current page)">⟲</button>
+        <button type="button" id="rotRBtn" class="btn-icon" title="Rotate right (selected or current page)">⟳</button>
+        <button type="button" id="dupBtn" class="btn-icon" title="Duplicate (selected or current page)">⧉</button>
         <button type="button" id="extractBtn" class="btn-icon" title="Extract selected pages to a new PDF" disabled>⬇ Extract</button>
-        <button type="button" id="delBtn" class="btn-icon danger" title="Delete (selected or current page)">🗑 Delete</button>
+        <button type="button" id="delBtn" class="btn-icon danger" title="Delete (selected or current page)">🗑</button>
+      </div>
+      <span class="bar-div"></span>
+      <div class="bar-group" aria-label="Tools">
         <button type="button" id="numBtn" class="btn-icon" title="Add page numbers">＃ Numbers</button>
         <button type="button" id="wmBtn" class="btn-icon" title="Add a watermark">💧 Watermark</button>
-        <button type="button" id="imgBtn" class="btn-icon" title="Export pages as images">🖼 To images</button>
+        <button type="button" id="imgBtn" class="btn-icon" title="Export pages as images">🖼 Images</button>
       </div>
       <div class="bar-right">
-        <button type="button" id="downloadBtn" class="btn btn-primary btn-sm">Download PDF</button>
+        <button type="button" id="downloadBtn" class="btn btn-primary btn-sm">⤓ Download</button>
       </div>
     </div>
 
-    <div id="numPanel" class="stamp-panel" hidden>
-      <strong>Page numbers</strong>
-      <label>Position
-        <select id="numPos" class="text-input">
-          <option value="bottom-center" selected>Bottom center</option>
-          <option value="bottom-right">Bottom right</option>
-          <option value="bottom-left">Bottom left</option>
-          <option value="top-center">Top center</option>
-          <option value="top-right">Top right</option>
-          <option value="top-left">Top left</option>
-        </select>
-      </label>
-      <label>Start at <input id="numStart" type="number" min="0" value="1" class="text-input" style="width: 70px;" /></label>
-      <label>Size <input id="numSize" type="number" min="6" max="48" value="11" class="text-input" style="width: 70px;" /></label>
-      <label class="rowchk"><input id="numTotal" type="checkbox" /> Show “n of N”</label>
-      <button type="button" id="numApply" class="btn btn-primary btn-sm">Add page numbers</button>
-      <button type="button" id="numCancel" class="btn btn-ghost btn-sm">Cancel</button>
-    </div>
+    <div class="studio" id="studio">
+      <aside id="rail" class="rail" aria-label="Pages — click to open, drag to reorder"></aside>
 
-    <div id="wmPanel" class="stamp-panel" hidden>
-      <strong>Watermark</strong>
-      <label>Text <input id="wmText" type="text" value="DRAFT" maxlength="80" class="text-input" style="width: 160px;" /></label>
-      <label>Size <input id="wmSize" type="number" min="0" max="200" value="0" placeholder="auto" class="text-input" style="width: 80px;" /></label>
-      <label>Opacity <input id="wmOpacity" type="range" min="5" max="80" value="18" /></label>
-      <button type="button" id="wmApply" class="btn btn-primary btn-sm">Add watermark</button>
-      <button type="button" id="wmCancel" class="btn btn-ghost btn-sm">Cancel</button>
-    </div>
-
-    <div id="imgPanel" class="stamp-panel" hidden>
-      <strong>Export as images</strong>
-      <label>Format
-        <select id="imgFormat" class="text-input">
-          <option value="png" selected>PNG</option>
-          <option value="jpg">JPG</option>
-        </select>
-      </label>
-      <label>Quality
-        <select id="imgQuality" class="text-input">
-          <option value="1240">Standard</option>
-          <option value="2000" selected>High</option>
-        </select>
-      </label>
-      <span class="muted" style="font-size: 12.5px;">Multiple pages download as a .zip.</span>
-      <button type="button" id="imgApply" class="btn btn-primary btn-sm">Export images</button>
-      <button type="button" id="imgCancel" class="btn btn-ghost btn-sm">Cancel</button>
-    </div>
-    <p class="org-hint">
-      Click a page to open it big · <strong>Shift</strong>-click for a range · <strong>Ctrl/⌘</strong>-click to add ·
-      drag thumbnails to reorder. Buttons act on the selected pages, or the current page.
-    </p>
-
-    <div class="studio">
-      <div id="rail" class="rail" aria-label="Pages — click to open, drag to reorder"></div>
-      <div class="stage">
+      <section class="stage">
         <div id="stageScroll" class="stage-scroll">
           <canvas id="bigCanvas" hidden></canvas>
           <p id="stageEmpty" class="stage-empty">Loading page…</p>
@@ -116,7 +73,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
             <span id="pageInd" class="pageind">—</span>
             <button type="button" id="nextBtn" class="btn-icon" aria-label="Next page">›</button>
           </div>
-          <div class="spacer"></div>
+          <span class="hint">Click a page to open · Shift-range · Ctrl/⌘ to add · drag to reorder</span>
           <div class="zoom">
             <button type="button" id="zoomOutBtn" class="btn-icon" aria-label="Zoom out">−</button>
             <span id="zoomVal" class="zval">100%</span>
@@ -124,7 +81,55 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
             <button type="button" id="zoomFitBtn" class="btn-icon" title="Fit width">Fit</button>
           </div>
         </div>
-      </div>
+      </section>
+
+      <aside id="toolPanel" class="toolpanel" hidden aria-label="Tool options">
+        <div class="tp-section" data-tp="num" hidden>
+          <div class="tp-head"><strong>Page numbers</strong><button type="button" class="tp-close" data-close aria-label="Close">✕</button></div>
+          <label class="tp-field">Position
+            <select id="numPos" class="text-input">
+              <option value="bottom-center" selected>Bottom center</option>
+              <option value="bottom-right">Bottom right</option>
+              <option value="bottom-left">Bottom left</option>
+              <option value="top-center">Top center</option>
+              <option value="top-right">Top right</option>
+              <option value="top-left">Top left</option>
+            </select>
+          </label>
+          <div class="tp-row">
+            <label class="tp-field">Start at <input id="numStart" type="number" min="0" value="1" class="text-input" /></label>
+            <label class="tp-field">Size <input id="numSize" type="number" min="6" max="48" value="11" class="text-input" /></label>
+          </div>
+          <label class="tp-check"><input id="numTotal" type="checkbox" /> Show “n of N”</label>
+          <button type="button" id="numApply" class="btn btn-primary tp-apply">Add page numbers</button>
+        </div>
+
+        <div class="tp-section" data-tp="wm" hidden>
+          <div class="tp-head"><strong>Watermark</strong><button type="button" class="tp-close" data-close aria-label="Close">✕</button></div>
+          <label class="tp-field">Text <input id="wmText" type="text" value="DRAFT" maxlength="80" class="text-input" /></label>
+          <label class="tp-field">Size <input id="wmSize" type="number" min="0" max="200" value="0" placeholder="auto" class="text-input" /></label>
+          <label class="tp-field">Opacity <input id="wmOpacity" type="range" min="5" max="80" value="18" /></label>
+          <button type="button" id="wmApply" class="btn btn-primary tp-apply">Add watermark</button>
+        </div>
+
+        <div class="tp-section" data-tp="img" hidden>
+          <div class="tp-head"><strong>Export as images</strong><button type="button" class="tp-close" data-close aria-label="Close">✕</button></div>
+          <label class="tp-field">Format
+            <select id="imgFormat" class="text-input">
+              <option value="png" selected>PNG</option>
+              <option value="jpg">JPG</option>
+            </select>
+          </label>
+          <label class="tp-field">Quality
+            <select id="imgQuality" class="text-input">
+              <option value="1240">Standard</option>
+              <option value="2000" selected>High</option>
+            </select>
+          </label>
+          <p class="muted" style="font-size: 12.5px; margin: 2px 0 0;">Multiple pages download as a .zip.</p>
+          <button type="button" id="imgApply" class="btn btn-primary tp-apply">Export images</button>
+        </div>
+      </aside>
     </div>
   </div>
 
@@ -528,6 +533,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const ids = appendSourcePages(sid, doc.pageCount);
     dropzone.hidden = true;
     workspace.hidden = false;
+    workspace.scrollIntoView({ block: 'start', behavior: 'smooth' });
     stageEmpty.textContent = 'Loading page…';
     setActive(ids[0] ?? null);
     if (ids[0]) selectOnly(ids[0]);
@@ -696,17 +702,23 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   extractBtn.addEventListener('click', () => exportPages(selectedOrdered(), 'extract', 'Extracted selected pages'));
   downloadBtn.addEventListener('click', () => exportPages(orderedIds(), 'edited', 'Done'));
 
-  // option panels (page numbers / watermark / export images)
-  const panelMap: Record<string, HTMLElement> = { num: $('numPanel'), wm: $('wmPanel'), img: $('imgPanel') };
-  const showPanel = (which: '' | 'num' | 'wm' | 'img') => {
-    for (const k of Object.keys(panelMap)) panelMap[k]!.hidden = k !== which;
-  };
-  $('numBtn').addEventListener('click', () => showPanel(panelMap.num!.hidden ? 'num' : ''));
-  $('wmBtn').addEventListener('click', () => showPanel(panelMap.wm!.hidden ? 'wm' : ''));
-  $('imgBtn').addEventListener('click', () => showPanel(panelMap.img!.hidden ? 'img' : ''));
-  $('numCancel').addEventListener('click', () => showPanel(''));
-  $('wmCancel').addEventListener('click', () => showPanel(''));
-  $('imgCancel').addEventListener('click', () => showPanel(''));
+  // contextual tool panel (right side): page numbers / watermark / export images
+  const studioEl = $('studio');
+  const toolPanel = $('toolPanel');
+  const tpSections = [...toolPanel.querySelectorAll<HTMLElement>('.tp-section')];
+  let curTool: '' | 'num' | 'wm' | 'img' = '';
+  function showPanel(which: '' | 'num' | 'wm' | 'img') {
+    curTool = which;
+    const open = which !== '';
+    toolPanel.hidden = !open;
+    studioEl.classList.toggle('panel-open', open);
+    for (const s of tpSections) s.hidden = s.dataset.tp !== which;
+    renderBig(); // stage width changed — re-fit the page
+  }
+  $('numBtn').addEventListener('click', () => showPanel(curTool === 'num' ? '' : 'num'));
+  $('wmBtn').addEventListener('click', () => showPanel(curTool === 'wm' ? '' : 'wm'));
+  $('imgBtn').addEventListener('click', () => showPanel(curTool === 'img' ? '' : 'img'));
+  toolPanel.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => showPanel('')));
   $('imgApply').addEventListener('click', () => {
     const format = ($('imgFormat') as HTMLSelectElement).value === 'jpg' ? 'jpg' : 'png';
     const longPx = parseInt(($('imgQuality') as HTMLSelectElement).value, 10) || 2000;
