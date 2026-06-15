@@ -5,7 +5,10 @@
   "private": true,
   "description": "DocLab Web — free, private, 100% in-browser PDF tools. Nothing is uploaded.",
   "scripts": {
+    "copy-pdfjs": "node scripts/copy-pdfjs-assets.mjs",
+    "predev": "node scripts/copy-pdfjs-assets.mjs",
     "dev": "astro dev",
+    "prebuild": "node scripts/copy-pdfjs-assets.mjs",
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",

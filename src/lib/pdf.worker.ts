@@ -38,6 +38,13 @@ export interface SplitResult {
   parts: number;
 }
 
+export interface OrganizePage {
+  /** 0-based source page index (the same index may appear twice = duplicate). */
+  index: number;
+  /** Extra clockwise rotation in degrees, added to the page's own rotation. */
+  rotate: number;
+}
+
 const api = {
   /** Page count for one PDF. Throws on encrypted/invalid (the UI surfaces it). */
   async pageCount(bytes: ArrayBuffer): Promise<number> {
@@ -170,6 +177,27 @@ const api = {
     }
     const zipped = zipSync(files, { level: 0 }); // PDFs are already compressed; store-only is fast
     return { kind: 'zip', filename: `${base}-split.zip`, bytes: zipped, parts: valid.length };
+  },
+
+  /** Rebuild a PDF from an explicit ordered page list: reorder, per-page
+   *  rotation, deletions (pages omitted from the list), and duplicates (an
+   *  index appearing more than once). Refuses to produce an empty document. */
+  async organize(bytes: ArrayBuffer, pages: OrganizePage[]): Promise<Uint8Array> {
+    const src = await PDFDocument.load(bytes);
+    const total = src.getPageCount();
+    const valid = pages.filter((p) => p.index >= 0 && p.index < total);
+    if (valid.length === 0) throw new Error('Keep at least one page.');
+
+    const out = await PDFDocument.create();
+    out.setCreator('DocLab Web');
+    out.setProducer(PRODUCER);
+    const copied = await out.copyPages(src, valid.map((p) => p.index));
+    copied.forEach((page, i) => {
+      const extra = (((valid[i]!.rotate % 360) + 360) % 360);
+      if (extra) page.setRotation(degrees(((page.getRotation().angle + extra) % 360 + 360) % 360));
+      out.addPage(page);
+    });
+    return out.save();
   },
 };
 
