@@ -38,8 +38,15 @@ export interface SplitResult {
   parts: number;
 }
 
-export interface OrganizePage {
-  /** 0-based source page index (the same index may appear twice = duplicate). */
+export interface ComposeSource {
+  id: string;
+  bytes: ArrayBuffer;
+}
+
+export interface ComposePage {
+  /** Which source the page comes from. */
+  sourceId: string;
+  /** 0-based page index within that source (may repeat = duplicate). */
   index: number;
   /** Extra clockwise rotation in degrees, added to the page's own rotation. */
   rotate: number;
@@ -179,24 +186,40 @@ const api = {
     return { kind: 'zip', filename: `${base}-split.zip`, bytes: zipped, parts: valid.length };
   },
 
-  /** Rebuild a PDF from an explicit ordered page list: reorder, per-page
-   *  rotation, deletions (pages omitted from the list), and duplicates (an
-   *  index appearing more than once). Refuses to produce an empty document. */
-  async organize(bytes: ArrayBuffer, pages: OrganizePage[]): Promise<Uint8Array> {
-    const src = await PDFDocument.load(bytes);
-    const total = src.getPageCount();
-    const valid = pages.filter((p) => p.index >= 0 && p.index < total);
+  /** Compose a PDF from an explicit ordered page list drawn from one OR MORE
+   *  source PDFs: reorder, per-page rotation, deletions (pages omitted),
+   *  duplicates (a page appearing twice), and merge/insert (pages from other
+   *  sources). Refuses to produce an empty document. */
+  async compose(sources: ComposeSource[], pages: ComposePage[]): Promise<Uint8Array> {
+    const docs = new Map<string, PDFDocument>();
+    for (const s of sources) docs.set(s.id, await PDFDocument.load(s.bytes));
+
+    const valid = pages.filter((p) => {
+      const d = docs.get(p.sourceId);
+      return d != null && p.index >= 0 && p.index < d.getPageCount();
+    });
     if (valid.length === 0) throw new Error('Keep at least one page.');
 
     const out = await PDFDocument.create();
     out.setCreator('DocLab Web');
     out.setProducer(PRODUCER);
-    const copied = await out.copyPages(src, valid.map((p) => p.index));
-    copied.forEach((page, i) => {
-      const extra = (((valid[i]!.rotate % 360) + 360) % 360);
-      if (extra) page.setRotation(degrees(((page.getRotation().angle + extra) % 360 + 360) % 360));
-      out.addPage(page);
-    });
+
+    // Copy in order. Batch consecutive pages from the same source so pdf-lib
+    // can share its copy context, while still honoring arbitrary interleaving.
+    let i = 0;
+    while (i < valid.length) {
+      const sourceId = valid[i]!.sourceId;
+      let j = i;
+      while (j < valid.length && valid[j]!.sourceId === sourceId) j++;
+      const run = valid.slice(i, j);
+      const copied = await out.copyPages(docs.get(sourceId)!, run.map((p) => p.index));
+      copied.forEach((page, k) => {
+        const extra = (((run[k]!.rotate % 360) + 360) % 360);
+        if (extra) page.setRotation(degrees(((page.getRotation().angle + extra) % 360 + 360) % 360));
+        out.addPage(page);
+      });
+      i = j;
+    }
     return out.save();
   },
 };

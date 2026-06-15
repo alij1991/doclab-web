@@ -36,6 +36,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
         <button type="button" id="clearSelBtn" class="linklike" disabled>Clear</button>
       </div>
       <div class="bar-actions">
+        <button type="button" id="addBtn" class="btn-icon" title="Add pages from another PDF or from images">➕ Add pages</button>
+        <input id="addInput" type="file" accept="application/pdf,.pdf,image/jpeg,image/png" multiple class="visually-hidden" tabindex="-1" aria-hidden="true" />
         <button type="button" id="rotLBtn" class="btn-icon" title="Rotate left (selected or current page)">⟲ Left</button>
         <button type="button" id="rotRBtn" class="btn-icon" title="Rotate right (selected or current page)">⟳ Right</button>
         <button type="button" id="dupBtn" class="btn-icon" title="Duplicate (selected or current page)">⧉ Duplicate</button>
@@ -114,17 +116,20 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const extractBtn = $('extractBtn') as HTMLButtonElement;
   const delBtn = $('delBtn') as HTMLButtonElement;
   const resetBtn = $('resetBtn') as HTMLButtonElement;
+  const addBtn = $('addBtn') as HTMLButtonElement;
+  const addInput = $('addInput') as HTMLInputElement;
   const prevBtn = $('prevBtn') as HTMLButtonElement;
   const nextBtn = $('nextBtn') as HTMLButtonElement;
   const zoomInBtn = $('zoomInBtn') as HTMLButtonElement;
   const zoomOutBtn = $('zoomOutBtn') as HTMLButtonElement;
   const zoomFitBtn = $('zoomFitBtn') as HTMLButtonElement;
 
-  interface Tile { src: number; rotate: number; }
+  interface Tile { sourceId: string; src: number; rotate: number; }
 
-  let bytes: ArrayBuffer | null = null;
   let fileName = '';
-  let thumbDoc: ThumbDoc | null = null;
+  const sources = new Map<string, { bytes: ArrayBuffer; doc: ThumbDoc }>();
+  const docFor = (id: string): ThumbDoc | undefined => sources.get(id)?.doc;
+  const newId = (p: string) => p + crypto.randomUUID().slice(0, 8);
   const state = new Map<string, Tile>();
   const els = new Map<string, HTMLElement>();
   const rendered = new Set<string>();
@@ -198,11 +203,12 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     renderChain = renderChain.then(async () => {
       const el = els.get(id);
       const s = state.get(id);
-      if (!el || !s || !thumbDoc) return;
+      const doc = s ? docFor(s.sourceId) : undefined;
+      if (!el || !s || !doc) return;
       const canvas = el.querySelector('canvas') as HTMLCanvasElement | null;
       if (!canvas) return;
       try {
-        await thumbDoc.render(s.src, canvas, THUMB_PX, s.rotate);
+        await doc.render(s.src, canvas, THUMB_PX, s.rotate);
         el.classList.add('thumb-ready');
       } catch (e) {
         el.classList.remove('thumb-ready');
@@ -212,19 +218,19 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   }
 
   async function renderBig() {
-    if (!thumbDoc || !activeId) {
+    const s = activeId ? state.get(activeId) : undefined;
+    const doc = s ? docFor(s.sourceId) : undefined;
+    if (!s || !doc) {
       bigCanvas.hidden = true;
       stageEmpty.hidden = false;
       stageEmpty.textContent = 'No page';
       return;
     }
-    const s = state.get(activeId);
-    if (!s) return;
     const token = ++bigToken;
     const cssWidth = Math.max(200, stageScroll.clientWidth - 44);
     const dpr = window.devicePixelRatio || 1;
     try {
-      await thumbDoc.renderWidth(s.src, bigCanvas, cssWidth, zoom, s.rotate, dpr);
+      await doc.renderWidth(s.src, bigCanvas, cssWidth, zoom, s.rotate, dpr);
       if (token !== bigToken) return; // a newer render superseded this one
       bigCanvas.hidden = false;
       stageEmpty.hidden = true;
@@ -365,11 +371,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     for (const id of ordered) {
       const s = state.get(id)!;
       const el = els.get(id)!;
-      const newId = `d${crypto.randomUUID().slice(0, 8)}`;
-      state.set(newId, { src: s.src, rotate: s.rotate });
-      el.after(buildTile(newId));
-      rendered.add(newId);
-      queueRender(newId);
+      const dupId = newId('d');
+      state.set(dupId, { sourceId: s.sourceId, src: s.src, rotate: s.rotate });
+      el.after(buildTile(dupId));
+      rendered.add(dupId);
+      queueRender(dupId);
     }
     renumber();
     setStatus(`Duplicated ${ordered.length} page${ordered.length === 1 ? '' : 's'}.`, 'ok');
@@ -390,13 +396,18 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const baseName = () => fileName.replace(/\.pdf$/i, '') || 'document';
 
   async function exportPages(ids: string[], suffix: string, label: string) {
-    if (!bytes || ids.length === 0) return;
-    const ops = ids.map((id) => { const s = state.get(id)!; return { index: s.src, rotate: s.rotate }; });
+    if (ids.length === 0) return;
+    const usedIds = [...new Set(ids.map((id) => state.get(id)!.sourceId))];
+    const srcArr = usedIds.map((sid) => ({ id: sid, bytes: sources.get(sid)!.bytes.slice(0) }));
+    const pages = ids.map((id) => {
+      const s = state.get(id)!;
+      return { sourceId: s.sourceId, index: s.src, rotate: s.rotate };
+    });
     downloadBtn.disabled = true;
     extractBtn.disabled = true;
     setStatus('Building your PDF…');
     try {
-      const out = await pdfApi().organize(bytes.slice(0), ops);
+      const out = await pdfApi().compose(srcArr, pages);
       download(out, `${baseName()}-${suffix}.pdf`);
       setStatus(`${label} — your download should start automatically.`, 'ok');
     } catch (e) {
@@ -417,8 +428,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   function teardown() {
     observer?.disconnect();
     observer = null;
-    thumbDoc?.destroy();
-    thumbDoc = null;
+    for (const s of sources.values()) s.doc.destroy();
+    sources.clear();
     state.clear();
     els.clear();
     rendered.clear();
@@ -434,7 +445,6 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   }
   function reset() {
     teardown();
-    bytes = null;
     fileName = '';
     workspace.hidden = true;
     dropzone.hidden = false;
@@ -460,9 +470,9 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     try { doc = await openForThumbs(buf.slice(0)); }
     catch (e) { console.error(e); setStatus("Couldn't read this PDF for preview — try the desktop app.", 'err'); return; }
 
-    bytes = buf;
+    const sid = newId('s');
+    sources.set(sid, { bytes: buf, doc });
     fileName = file.name;
-    thumbDoc = doc;
     fileNameEl.textContent = file.name;
     warnEl.hidden = !info.tagged;
     if (info.tagged) {
@@ -481,30 +491,84 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       { root: rail, rootMargin: '400px' },
     );
 
-    const frag = document.createDocumentFragment();
-    const ids: string[] = [];
-    for (let i = 0; i < doc.pageCount; i++) {
-      const id = `p${i}-${crypto.randomUUID().slice(0, 8)}`;
-      ids.push(id);
-      state.set(id, { src: i, rotate: 0 });
-      frag.appendChild(buildTile(id));
-    }
-    rail.appendChild(frag);
-    renumber();
-    refreshSelectionUI();
-    ids.slice(0, 10).forEach((id) => { rendered.add(id); queueRender(id); });
+    const ids = appendSourcePages(sid, doc.pageCount);
 
     dropzone.hidden = true;
     workspace.hidden = false;
     setStatus('');
     stageEmpty.textContent = 'Loading page…';
     setActive(ids[0] ?? null);
-    selectOnly(ids[0]!);
+    if (ids[0]) selectOnly(ids[0]);
+  }
+
+  function appendSourcePages(sid: string, count: number): string[] {
+    const frag = document.createDocumentFragment();
+    const ids: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const id = newId('p');
+      ids.push(id);
+      state.set(id, { sourceId: sid, src: i, rotate: 0 });
+      frag.appendChild(buildTile(id));
+    }
+    rail.appendChild(frag);
+    renumber();
+    refreshSelectionUI();
+    ids.slice(0, 8).forEach((id) => { rendered.add(id); queueRender(id); });
+    return ids;
+  }
+
+  async function addFiles(files: File[]) {
+    if (sources.size === 0) { await loadFile(files[0]!); files = files.slice(1); if (!files.length) return; }
+    const isPdf = (f: File) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+    const isImg = (f: File) => /image\/(jpeg|png)/.test(f.type) || /\.(jpe?g|png)$/i.test(f.name);
+    const pdfs = files.filter(isPdf);
+    const imgs = files.filter(isImg);
+    if (pdfs.length === 0 && imgs.length === 0) { setStatus('Add PDF or JPG/PNG files.', 'err'); return; }
+
+    let added = 0;
+    setStatus('Adding…');
+    let firstNew: string | null = null;
+    const ingest = async (buf: ArrayBuffer, label: string) => {
+      const info = await pdfApi().analyze(buf.slice(0));
+      if (info.encrypted || info.pages === 0) { setStatus(`Skipped ${label} (encrypted or damaged).`, 'err'); return; }
+      const doc = await openForThumbs(buf.slice(0));
+      const sid = newId('s');
+      sources.set(sid, { bytes: buf, doc });
+      const ids = appendSourcePages(sid, doc.pageCount);
+      if (!firstNew && ids[0]) firstNew = ids[0];
+      added += doc.pageCount;
+    };
+
+    try {
+      for (const f of pdfs) await ingest(await f.arrayBuffer(), f.name);
+      if (imgs.length) {
+        const items = await Promise.all(
+          imgs.map(async (f) => ({
+            name: f.name,
+            kind: (f.type === 'image/png' || /\.png$/i.test(f.name) ? 'png' : 'jpg') as 'png' | 'jpg',
+            bytes: await f.arrayBuffer(),
+          })),
+        );
+        const out = await pdfApi().imagesToPdf(items);
+        const ab = new ArrayBuffer(out.byteLength);
+        new Uint8Array(ab).set(out);
+        await ingest(ab, `${imgs.length} image${imgs.length === 1 ? '' : 's'}`);
+      }
+      if (added > 0) {
+        if (firstNew) { setActive(firstNew); selectOnly(firstNew); }
+        setStatus(`Added ${added} page${added === 1 ? '' : 's'}.`, 'ok');
+      }
+    } catch (e) {
+      console.error(e);
+      setStatus(shortError(e), 'err');
+    }
   }
 
   // wiring
   pickBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', () => { const f = fileInput.files?.[0]; if (f) loadFile(f); });
+  addBtn.addEventListener('click', () => addInput.click());
+  addInput.addEventListener('change', () => { const fs = addInput.files; if (fs && fs.length) addFiles([...fs]); addInput.value = ''; });
   resetBtn.addEventListener('click', reset);
   selectAllBtn.addEventListener('click', () => {
     selected.clear();
