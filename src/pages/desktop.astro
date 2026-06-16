@@ -1,0 +1,90 @@
+---
+import Base from '../layouts/Base.astro';
+
+const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
+
+const features = [
+  { icon: '✏️', title: 'Annotate', desc: 'Highlight, underline, sticky notes, free text, shapes, arrows, and free-hand ink — snapped neatly to your text.' },
+  { icon: '🗂️', title: 'Organize & merge', desc: 'Reorder, rotate, insert, split, and extract pages — or combine many PDFs into one.' },
+  { icon: '🔎', title: 'On-device OCR', desc: "Turn scans and photos into searchable PDFs using your PC's built-in text recognition. No setup, no internet." },
+  { icon: '🔒', title: 'True redaction', desc: 'Permanently remove text and images — a real deletion, not a black box — and strip hidden metadata.' },
+  { icon: '🖼️', title: 'Images → PDF', desc: 'Drop in pictures or scans and get a tidy, searchable PDF in seconds.' },
+  { icon: '✍️', title: 'Sign', desc: 'Draw or import a signature and stamp it across one page or many.' },
+];
+---
+
+<Base
+  title="DocLab for Windows — free, private desktop PDF editor"
+  description="DocLab is a fast, private PDF editor for Windows — view, annotate, sign, merge, redact, and OCR your PDFs free and entirely on your device. No account, no uploads."
+>
+  <section class="container hero">
+    <p class="eyebrow">Desktop app · Windows · Free</p>
+    <h1>The <span class="grad">private</span> PDF editor for Windows</h1>
+    <p class="lead" style="margin: 0 auto 28px;">
+      View, annotate, sign, merge, redact, and OCR your PDFs — free, and entirely on your device.
+      No account. No uploads. No cloud.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary btn-lg" href={STORE_URL} target="_blank" rel="noopener">Get it free on Microsoft Store →</a>
+      <a class="btn btn-ghost btn-lg" href="/edit-pdf">Or use the tools online</a>
+    </div>
+    <div class="hero-badges">
+      <span class="badge"><b>Free</b></span>
+      <span class="badge"><b>No account</b></span>
+      <span class="badge"><b>Nothing uploaded</b></span>
+      <span class="badge">Windows 10 / 11</span>
+    </div>
+  </section>
+
+  <section class="container" style="padding-top: 24px;">
+    <div class="tool-grid">
+      {
+        features.map((f) => (
+          <div class="tool" style="cursor: default;">
+            <div class="ico">{f.icon}</div>
+            <h3>{f.title}</h3>
+            <p>{f.desc}</p>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="container" style="margin-top: 48px;">
+    <div class="card promo">
+      <div style="flex: 1; min-width: 260px;">
+        <p class="eyebrow">Private by design</p>
+        <h2 style="margin: 0 0 10px;">Your files never leave your device</h2>
+        <p class="muted" style="margin: 0;">
+          DocLab is local-first. PDFs you open, edit, and save stay on your computer — there's no
+          account and nothing is uploaded. The only optional network use is a manual update check
+          and opt-in, anonymized crash reports, both off by default.
+          <a href="/privacy" style="color: var(--brand);">Read the privacy policy →</a>
+        </p>
+      </div>
+      <div style="flex: 1; min-width: 260px;">
+        <p class="muted" style="margin: 0 0 16px;">New to DocLab? The quick-start guide walks through opening, annotating, organizing, OCR, and saving.</p>
+        <a class="btn btn-ghost" href="/getting-started">Read the getting-started guide →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="container" style="margin-top: 8px;">
+    <h2 style="text-align: center; margin-bottom: 8px;">Good to know</h2>
+    <div style="max-width: 760px; margin: 24px auto 0;">
+      <details open><summary>Is DocLab free?</summary><p>Yes — free on the Microsoft Store. No account, no subscription, no in-app purchases.</p></details>
+      <details><summary>Does it upload my files?</summary><p>No. Everything happens on your device — desktop app and web tools alike. There's no server processing your documents.</p></details>
+      <details><summary>What do I need to run it?</summary><p>Windows 10 or 11. Install from the Microsoft Store and you're ready.</p></details>
+      <details><summary>Is there a Mac version?</summary><p>A macOS version is in the works. For now the desktop app is Windows-only — but the <a href="/edit-pdf">free online tools</a> work on any device, including Mac.</p></details>
+      <details><summary>Can I use it without installing?</summary><p>Yes — the <a href="/edit-pdf">online editor</a> runs entirely in your browser (edit, merge, split, rotate, organize, page numbers, watermark, annotate, image conversion). The desktop app adds OCR, true redaction, and text editing.</p></details>
+    </div>
+  </section>
+
+  <section class="container" style="margin-top: 40px;">
+    <div class="card" style="text-align: center; background: linear-gradient(120deg, rgba(124,108,255,.16), rgba(168,85,247,.10)); border-color: var(--line-2);">
+      <h2 style="margin: 0 0 10px;">Ready to edit PDFs the private way?</h2>
+      <p class="lead" style="margin: 0 auto 22px;">Free on the Microsoft Store for Windows 10 and 11.</p>
+      <a class="btn btn-primary btn-lg" href={STORE_URL} target="_blank" rel="noopener">Get DocLab free →</a>
+    </div>
+  </section>
+</Base>

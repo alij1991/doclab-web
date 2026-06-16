@@ -1,0 +1,15 @@
+---
+// Layout for long-form content pages (privacy, getting-started) authored as
+// Markdown. Wraps the rendered markdown in the site chrome + readable prose.
+import Base from './Base.astro';
+const { frontmatter } = Astro.props;
+---
+
+<Base title={frontmatter.title} description={frontmatter.description}>
+  <section class="container prose" style="padding: 52px 0 32px;">
+    <p class="eyebrow" style="margin-bottom: 18px;">
+      <a href="/" style="color: var(--brand); text-decoration: none;">← DocLab home</a>
+    </p>
+    <slot />
+  </section>
+</Base>
