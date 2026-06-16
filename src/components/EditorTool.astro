@@ -94,13 +94,15 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
         <div class="tp-section" data-tp="ann" hidden>
           <div class="tp-head"><strong>Annotate</strong><button type="button" class="tp-close" data-close aria-label="Close">✕</button></div>
           <div class="atools" role="group" aria-label="Annotation tool">
+            <button type="button" class="atool" data-atool="select">↖ Select</button>
             <button type="button" class="atool active" data-atool="pen">✏ Draw</button>
             <button type="button" class="atool" data-atool="highlight">🖍 Highlight</button>
             <button type="button" class="atool" data-atool="text">T Text</button>
             <button type="button" class="atool" data-atool="rect">▭ Box</button>
             <button type="button" class="atool" data-atool="line">／ Line</button>
           </div>
-          <div class="tp-field">Color
+          <p class="muted" id="annHint" style="font-size: 12px; margin: 0;">Draw on the page. Use <strong>↖ Select</strong> to move or resize what you've added.</p>
+          <div class="tp-field" id="annColorField">Color
             <span class="swatches" id="annSwatches">
               <button type="button" class="sw active" data-color="0,0,0" style="background:#111" aria-label="Black"></button>
               <button type="button" class="sw" data-color="0.9,0.12,0.12" style="background:#e21f1f" aria-label="Red"></button>
@@ -238,12 +240,17 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   // annotations: per-tile list, stored in PDF user-space coordinates
   const annots = new Map<string, Annot[]>();
   let curView: PageView | null = null; // converters for the active page render
-  let annTool: 'pen' | 'highlight' | 'text' | 'rect' | 'line' = 'pen';
+  let annTool: 'select' | 'pen' | 'highlight' | 'text' | 'rect' | 'line' = 'pen';
   let annRgb: [number, number, number] = [0, 0, 0];
   let annStroke = 3;
   let annTextSize = 16;
   let annotateMode = false;
   const actx = annotCanvas.getContext('2d');
+  // selection / move / resize of an existing annotation (select tool)
+  let selAnnot: Annot | null = null;
+  type Box = { x: number; y: number; w: number; h: number };
+  let drag: { mode: 'move' | 'resize'; handle: string; snap: Annot; obox: Box; startPdf: [number, number] } | null = null;
+  const measureCtx = document.createElement('canvas').getContext('2d');
 
   function setStatus(msg: string, kind: '' | 'ok' | 'err' = '') {
     statusEl.textContent = msg;
@@ -372,6 +379,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const list = activeId ? annots.get(activeId) ?? [] : [];
     for (const a of list) paintAnnot(a);
     if (preview) paintAnnot(preview);
+    if (selAnnot && !preview) drawSelectionChrome();
   }
 
   function paintAnnot(a: Annot) {
@@ -428,6 +436,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 
   function setActive(id: string | null) {
     activeId = id;
+    selAnnot = null;
     for (const [tid, el] of els) el.classList.toggle('active', tid === id);
     if (id) els.get(id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     updatePageInd();
@@ -625,6 +634,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     pageWrap.hidden = true;
     curView = null;
     annots.clear();
+    selAnnot = null;
+    drag = null;
     textLayer.replaceChildren();
     renderChain = Promise.resolve();
     refreshSelectionUI();
@@ -873,10 +884,19 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     b.addEventListener('click', () => {
       annTool = (b.dataset.atool ?? 'pen') as typeof annTool;
       document.querySelectorAll('.atool').forEach((x) => x.classList.toggle('active', x === b));
-      $('annWidthField').hidden = annTool === 'text';
+      const isSelect = annTool === 'select';
+      $('annColorField').hidden = isSelect;
+      $('annWidthField').hidden = isSelect || annTool === 'text';
       $('annSizeField').hidden = annTool !== 'text';
-      // a sensible default color for highlight
+      $('annHint').textContent = isSelect
+        ? 'Click an annotation to select it, drag to move, drag a handle to resize. Delete removes it.'
+        : annTool === 'text'
+          ? 'Click on the page, type your text, then press Enter.'
+          : 'Draw on the page. Switch to ↖ Select to move or resize what you add.';
       if (annTool === 'highlight') setSwatch([1, 0.84, 0]);
+      if (!isSelect) selAnnot = null;
+      annotCanvas.style.cursor = isSelect ? 'default' : annTool === 'text' ? 'text' : 'crosshair';
+      redrawOverlay();
     }),
   );
   function setSwatch(rgb: [number, number, number]) {
@@ -894,8 +914,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   );
   ($('annWidth') as HTMLInputElement).addEventListener('input', (e) => { annStroke = parseInt((e.target as HTMLInputElement).value, 10) || 3; });
   ($('annTextSize') as HTMLInputElement).addEventListener('input', (e) => { annTextSize = parseInt((e.target as HTMLInputElement).value, 10) || 16; });
-  $('annUndo').addEventListener('click', () => { const l = curAnnots(); if (l.length) { l.pop(); redrawOverlay(); } });
-  $('annClear').addEventListener('click', () => { if (activeId) { annots.set(activeId, []); redrawOverlay(); } });
+  $('annUndo').addEventListener('click', () => { const l = curAnnots(); if (l.length) { l.pop(); selAnnot = null; redrawOverlay(); } });
+  $('annClear').addEventListener('click', () => { if (activeId) { annots.set(activeId, []); selAnnot = null; redrawOverlay(); } });
 
   // pointer drawing on the overlay
   let drawing = false;
@@ -907,6 +927,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   };
   annotCanvas.addEventListener('pointerdown', (e) => {
     if (!annotateMode || !curView) return;
+    if (annTool === 'select') { selectPointerDown(e); return; }
     if (annTool === 'text') { placeTextInput(overlayXY(e)); return; }
     drawing = true;
     annotCanvas.setPointerCapture(e.pointerId);
@@ -916,6 +937,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     else startPt = [px, py];
   });
   annotCanvas.addEventListener('pointermove', (e) => {
+    if (annTool === 'select') { selectPointerMove(e); return; }
     if (!drawing || !curView) return;
     const [cx, cy] = overlayXY(e);
     const [px, py] = curView.toPdf(cx, cy);
@@ -934,6 +956,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     return { kind: 'rect', x, y, w, h, rgb: annRgb, width: annStroke };
   }
   annotCanvas.addEventListener('pointerup', (e) => {
+    if (annTool === 'select') { selectPointerUp(); return; }
     if (!drawing || !curView) return;
     drawing = false;
     const [cx, cy] = overlayXY(e);
@@ -946,6 +969,154 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       redrawOverlay();
     }
   });
+  // ---- select / move / resize an existing annotation ----
+  function measurePdf(text: string, size: number): number {
+    if (!measureCtx) return Math.max(8, (text.length || 1) * size * 0.5);
+    measureCtx.font = `${size}px Helvetica, Arial, sans-serif`;
+    return Math.max(4, measureCtx.measureText(text || ' ').width);
+  }
+  function bboxOf(a: Annot): Box {
+    if (a.kind === 'rect' || a.kind === 'highlight') return { x: a.x, y: a.y, w: a.w, h: a.h };
+    if (a.kind === 'line') return { x: Math.min(a.x1, a.x2), y: Math.min(a.y1, a.y2), w: Math.max(Math.abs(a.x2 - a.x1), 1), h: Math.max(Math.abs(a.y2 - a.y1), 1) };
+    if (a.kind === 'text') return { x: a.x, y: a.y - a.size * 0.22, w: measurePdf(a.text, a.size), h: a.size };
+    let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+    for (let i = 0; i < a.points.length; i += 2) { const x = a.points[i]!, y = a.points[i + 1]!; if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; }
+    return { x: mnx, y: mny, w: Math.max(mxx - mnx, 1), h: Math.max(mxy - mny, 1) };
+  }
+  const cloneAnnot = (a: Annot): Annot => JSON.parse(JSON.stringify(a));
+  function translateAnnot(a: Annot, dx: number, dy: number) {
+    if (a.kind === 'rect' || a.kind === 'highlight' || a.kind === 'text') { a.x += dx; a.y += dy; }
+    else if (a.kind === 'line') { a.x1 += dx; a.y1 += dy; a.x2 += dx; a.y2 += dy; }
+    else for (let i = 0; i < a.points.length; i += 2) { a.points[i] = a.points[i]! + dx; a.points[i + 1] = a.points[i + 1]! + dy; }
+  }
+  function scaleAnnot(a: Annot, ob: Box, nb: Box) {
+    const sx = ob.w ? nb.w / ob.w : 1, sy = ob.h ? nb.h / ob.h : 1;
+    const mapX = (x: number) => nb.x + (x - ob.x) * sx;
+    const mapY = (y: number) => nb.y + (y - ob.y) * sy;
+    if (a.kind === 'rect' || a.kind === 'highlight') { a.x = nb.x; a.y = nb.y; a.w = nb.w; a.h = nb.h; }
+    else if (a.kind === 'line') { a.x1 = mapX(a.x1); a.y1 = mapY(a.y1); a.x2 = mapX(a.x2); a.y2 = mapY(a.y2); }
+    else if (a.kind === 'text') { a.size = Math.max(4, a.size * sy); a.x = nb.x; a.y = nb.y + a.size * 0.22; }
+    else for (let i = 0; i < a.points.length; i += 2) { a.points[i] = mapX(a.points[i]!); a.points[i + 1] = mapY(a.points[i + 1]!); }
+  }
+  function hitAnnot(px: number, py: number): Annot | null {
+    const list = activeId ? annots.get(activeId) ?? [] : [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      const b = bboxOf(list[i]!);
+      if (px >= b.x - 4 && px <= b.x + b.w + 4 && py >= b.y - 4 && py <= b.y + b.h + 4) return list[i]!;
+    }
+    return null;
+  }
+  const HANDLES: readonly [string, number, number][] = [
+    ['nw', 0, 0], ['n', 0.5, 0], ['ne', 1, 0], ['e', 1, 0.5], ['se', 1, 1], ['s', 0.5, 1], ['sw', 0, 1], ['w', 0, 0.5],
+  ];
+  function selCssBox(): { l: number; t: number; r: number; b: number } | null {
+    if (!selAnnot || !curView) return null;
+    const b = bboxOf(selAnnot);
+    const pts = [curView.toView(b.x, b.y), curView.toView(b.x + b.w, b.y), curView.toView(b.x, b.y + b.h), curView.toView(b.x + b.w, b.y + b.h)];
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    return { l: Math.min(...xs), t: Math.min(...ys), r: Math.max(...xs), b: Math.max(...ys) };
+  }
+  function handleAt(cx: number, cy: number): string | null {
+    const box = selCssBox();
+    if (!box) return null;
+    for (const [name, fx, fy] of HANDLES) {
+      const hx = box.l + (box.r - box.l) * fx, hy = box.t + (box.b - box.t) * fy;
+      if (Math.abs(cx - hx) <= 9 && Math.abs(cy - hy) <= 9) return name;
+    }
+    return null;
+  }
+  const cursorForHandle = (h: string) =>
+    h === 'n' || h === 's' ? 'ns-resize' : h === 'e' || h === 'w' ? 'ew-resize' : h === 'ne' || h === 'sw' ? 'nesw-resize' : 'nwse-resize';
+
+  function selectPointerDown(e: PointerEvent) {
+    if (!curView) return;
+    const [cx, cy] = overlayXY(e);
+    if (selAnnot) {
+      const h = handleAt(cx, cy);
+      if (h) {
+        drag = { mode: 'resize', handle: h, snap: cloneAnnot(selAnnot), obox: bboxOf(selAnnot), startPdf: curView.toPdf(cx, cy) };
+        annotCanvas.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+    const [px, py] = curView.toPdf(cx, cy);
+    const hit = hitAnnot(px, py);
+    selAnnot = hit;
+    if (hit) {
+      drag = { mode: 'move', handle: '', snap: cloneAnnot(hit), obox: bboxOf(hit), startPdf: [px, py] };
+      annotCanvas.setPointerCapture(e.pointerId);
+    }
+    redrawOverlay();
+  }
+  function selectPointerMove(e: PointerEvent) {
+    const [cx, cy] = overlayXY(e);
+    if (!drag) {
+      let cur = 'default';
+      if (selAnnot && curView) {
+        const h = handleAt(cx, cy);
+        if (h) cur = cursorForHandle(h);
+        else { const [px, py] = curView.toPdf(cx, cy); if (hitAnnot(px, py)) cur = 'move'; }
+      }
+      annotCanvas.style.cursor = cur;
+      return;
+    }
+    if (!selAnnot || !curView) return;
+    if (drag.mode === 'move') {
+      const [px, py] = curView.toPdf(cx, cy);
+      const a = cloneAnnot(drag.snap);
+      translateAnnot(a, px - drag.startPdf[0], py - drag.startPdf[1]);
+      Object.assign(selAnnot, a);
+    } else {
+      const ob = drag.obox;
+      const pts = [curView.toView(ob.x, ob.y), curView.toView(ob.x + ob.w, ob.y), curView.toView(ob.x, ob.y + ob.h), curView.toView(ob.x + ob.w, ob.y + ob.h)];
+      let l = Math.min(...pts.map((p) => p[0])), t = Math.min(...pts.map((p) => p[1]));
+      let r = Math.max(...pts.map((p) => p[0])), b = Math.max(...pts.map((p) => p[1]));
+      const h = drag.handle;
+      if (h.includes('w')) l = Math.min(cx, r - 8);
+      if (h.includes('e')) r = Math.max(cx, l + 8);
+      if (h.includes('n')) t = Math.min(cy, b - 8);
+      if (h.includes('s')) b = Math.max(cy, t + 8);
+      const p1 = curView.toPdf(l, t), p2 = curView.toPdf(r, b);
+      const nb = { x: Math.min(p1[0], p2[0]), y: Math.min(p1[1], p2[1]), w: Math.max(Math.abs(p2[0] - p1[0]), 1), h: Math.max(Math.abs(p2[1] - p1[1]), 1) };
+      const a = cloneAnnot(drag.snap);
+      scaleAnnot(a, ob, nb);
+      Object.assign(selAnnot, a);
+    }
+    redrawOverlay();
+  }
+  function selectPointerUp() { drag = null; redrawOverlay(); }
+  function deleteSelectedAnnot() {
+    if (!selAnnot || !activeId) return false;
+    const list = annots.get(activeId);
+    if (!list) return false;
+    const i = list.indexOf(selAnnot);
+    if (i >= 0) list.splice(i, 1);
+    selAnnot = null;
+    redrawOverlay();
+    return true;
+  }
+  function drawSelectionChrome() {
+    if (!actx) return;
+    const box = selCssBox();
+    if (!box) return;
+    const { l, t, r, b } = box;
+    actx.save();
+    actx.strokeStyle = 'rgba(124,108,255,0.95)';
+    actx.lineWidth = 1.5;
+    actx.setLineDash([5, 4]);
+    actx.strokeRect(l - 2, t - 2, r - l + 4, b - t + 4);
+    actx.setLineDash([]);
+    actx.fillStyle = '#fff';
+    for (const [, fx, fy] of HANDLES) {
+      const hx = l + (r - l) * fx, hy = t + (b - t) * fy;
+      actx.beginPath();
+      actx.rect(hx - 4, hy - 4, 8, 8);
+      actx.fill();
+      actx.stroke();
+    }
+    actx.restore();
+  }
+
   function placeTextInput([cx, cy]: [number, number]) {
     if (!curView) return;
     textLayer.querySelectorAll('input').forEach((el) => el.remove()); // only one at a time
@@ -1029,13 +1200,20 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     if (workspace.hidden) return;
     const tag = (document.activeElement?.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea') return;
-    if ((e.key === 'Delete' || e.key === 'Backspace') && targetIds().length) { e.preventDefault(); deleteIds(targetIds()); }
-    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (annotateMode && selAnnot) { e.preventDefault(); deleteSelectedAnnot(); return; }
+      if (targetIds().length) { e.preventDefault(); deleteIds(targetIds()); }
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
       e.preventDefault();
       selected.clear();
       for (const id of orderedIds()) selected.add(id);
       refreshSelectionUI();
-    } else if (e.key === 'Escape') { selected.clear(); anchor = null; refreshSelectionUI(); }
+    } else if (e.key === 'Escape') {
+      if (selAnnot) { selAnnot = null; redrawOverlay(); }
+      selected.clear();
+      anchor = null;
+      refreshSelectionUI();
+    }
     else if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); nextBtn.click(); }
     else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prevBtn.click(); }
   });
