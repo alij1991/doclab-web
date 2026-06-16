@@ -24,6 +24,9 @@
 }
 
 * { box-sizing: border-box; }
+/* The hidden attribute must always win, even over class rules that set display
+   (e.g. .tp-section/.tp-field use display:flex). */
+[hidden] { display: none !important; }
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
