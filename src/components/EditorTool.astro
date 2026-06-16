@@ -75,6 +75,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
             <canvas id="bigCanvas"></canvas>
             <canvas id="annotCanvas" class="annot-canvas"></canvas>
             <div id="textLayer" class="text-layer"></div>
+            <div id="annTip" class="annot-tip" hidden aria-hidden="true">↖ Switch to <strong>Select / Move</strong> to move or resize this</div>
           </div>
           <p id="stageEmpty" class="stage-empty">Loading page…</p>
         </div>
@@ -105,7 +106,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
             <button type="button" class="atool" data-atool="rect">▭ Box</button>
             <button type="button" class="atool" data-atool="line">／ Line</button>
           </div>
-          <p class="muted" id="annHint" style="font-size: 12px; margin: 0;">Draw on the page — it switches to <strong>↖ Select / Move</strong> automatically so you can drag to move or grab a handle to resize.</p>
+          <p class="muted" id="annHint" style="font-size: 12px; margin: 0;">Draw on the page. To move or resize, switch to <strong>↖ Select / Move</strong>.</p>
           <div class="tp-field" id="annColorField">Color
             <span class="swatches" id="annSwatches">
               <button type="button" class="sw active" data-color="0,0,0" style="background:#111" aria-label="Black"></button>
@@ -223,6 +224,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const pageWrap = $('pageWrap');
   const annotCanvas = $('annotCanvas') as HTMLCanvasElement;
   const textLayer = $('textLayer');
+  const annTip = $('annTip');
 
   interface Tile { sourceId: string; src: number; rotate: number; }
 
@@ -252,7 +254,6 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const actx = annotCanvas.getContext('2d');
   // selection / move / resize of an existing annotation (select tool)
   let selAnnot: Annot | null = null;
-  let taughtSelect = false; // show the "switched to Select" toast only once per session
   type Box = { x: number; y: number; w: number; h: number };
   let drag: { mode: 'move' | 'resize'; handle: string; snap: Annot; obox: Box; startPdf: [number, number] } | null = null;
   const measureCtx = document.createElement('canvas').getContext('2d');
@@ -896,10 +897,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       ? 'Click an annotation to select it, drag to move, drag a handle to resize. Delete removes it.'
       : annTool === 'text'
         ? 'Click on the page, type your text, then press Enter.'
-        : 'Draw on the page. It switches to ↖ Select / Move automatically so you can move or resize.';
+        : 'Draw on the page. To move or resize what you add, switch to ↖ Select / Move.';
     if (annTool === 'highlight') setSwatch([1, 0.84, 0]);
-    if (!isSelect) selAnnot = null; // skipped for 'select' so an auto-selected annotation survives
+    if (!isSelect) selAnnot = null;
     annotCanvas.style.cursor = isSelect ? 'default' : annTool === 'text' ? 'text' : 'crosshair';
+    hideHoverTip();
     redrawOverlay();
   }
   document.querySelectorAll<HTMLButtonElement>('.atool').forEach((b) =>
@@ -935,6 +937,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     if (!annotateMode || !curView) return;
     if (annTool === 'select') { selectPointerDown(e); return; }
     if (annTool === 'text') { placeTextInput(overlayXY(e)); return; }
+    hideHoverTip();
     drawing = true;
     annotCanvas.setPointerCapture(e.pointerId);
     const [cx, cy] = overlayXY(e);
@@ -944,7 +947,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   });
   annotCanvas.addEventListener('pointermove', (e) => {
     if (annTool === 'select') { selectPointerMove(e); return; }
-    if (!drawing || !curView) return;
+    if (!curView) return;
+    if (!drawing) { updateHoverTip(e); return; } // not drawing → maybe show the hover tip
     const [cx, cy] = overlayXY(e);
     const [px, py] = curView.toPdf(cx, cy);
     if (annTool === 'pen') {
@@ -954,16 +958,24 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       redrawOverlay(previewShape(startPt, [px, py]));
     }
   });
-  function commit(a: Annot) {
-    curAnnots().push(a);
-    selAnnot = a; // auto-select the just-created annotation...
-    setTool('select'); // ...and switch to Select / Move so its resize handles appear (also redraws)
-    if (!taughtSelect) {
-      taughtSelect = true;
-      setStatus('Switched to Select / Move — drag to move, drag a handle to resize.');
-      setTimeout(() => { if (statusEl.textContent?.startsWith('Switched to Select')) setStatus(''); }, 4000);
+  function commit(a: Annot) { curAnnots().push(a); redrawOverlay(); }
+  // Hover hint: while a drawing tool is active, moving the cursor over an
+  // existing annotation shows a small tip that Select / Move can edit it.
+  // (We intentionally do NOT auto-switch tools — the user keeps drawing.)
+  function updateHoverTip(e: PointerEvent) {
+    if (!curView || annTool === 'select') { hideHoverTip(); return; }
+    const [cx, cy] = overlayXY(e);
+    const [px, py] = curView.toPdf(cx, cy);
+    if (hitAnnot(px, py)) {
+      annTip.style.left = cx + 'px';
+      annTip.style.top = cy + 'px';
+      annTip.hidden = false;
+    } else {
+      hideHoverTip();
     }
   }
+  function hideHoverTip() { annTip.hidden = true; }
+  annotCanvas.addEventListener('pointerleave', hideHoverTip);
   function previewShape(a: [number, number], b: [number, number]): Annot {
     if (annTool === 'line') return { kind: 'line', x1: a[0], y1: a[1], x2: b[0], y2: b[1], rgb: annRgb, width: annStroke };
     const x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]), w = Math.abs(b[0] - a[0]), h = Math.abs(b[1] - a[1]);

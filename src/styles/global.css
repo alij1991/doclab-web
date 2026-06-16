@@ -251,6 +251,9 @@ code { background: var(--card); border: 1px solid var(--line); border-radius: 5p
 .studio.annotating .annot-canvas { pointer-events: auto; cursor: crosshair; }
 .text-layer { position: absolute; inset: 0; pointer-events: none; }
 .text-layer input { position: absolute; pointer-events: auto; background: rgba(255, 255, 255, 0.92); border: 1px solid var(--brand); color: #111; font-family: Helvetica, Arial, sans-serif; padding: 1px 4px; outline: none; border-radius: 3px; }
+/* Hover hint shown over an existing annotation while a drawing tool is active */
+.annot-tip { position: absolute; transform: translate(10px, -130%); pointer-events: none; z-index: 5; padding: 4px 9px; font-size: 12px; line-height: 1.3; white-space: nowrap; color: var(--fg); background: var(--bg-elev); border: 1px solid var(--line-2); border-radius: 8px; box-shadow: var(--shadow-2); }
+.annot-tip strong { color: var(--brand); }
 .atools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .atool { padding: 8px 6px; font-size: 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); color: var(--fg); cursor: pointer; font-family: inherit; }
 .atool:hover { border-color: var(--line-2); }
