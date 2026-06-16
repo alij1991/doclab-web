@@ -3,14 +3,18 @@ import Base from '../layouts/Base.astro';
 
 const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 
+// Capabilities of the one editor — shown as an explanatory feature list, not
+// separate destinations (every one of these happens inside /edit-pdf).
 const tools = [
-  { href: '/merge-pdf', icon: '🗂️', title: 'Merge PDF', desc: 'Combine several PDFs into one, in any order.', live: true },
-  { href: '/split-pdf', icon: '✂️', title: 'Split PDF', desc: 'Separate pages into multiple files.', live: true },
-  { href: '/rotate-pdf', icon: '🔄', title: 'Rotate PDF', desc: 'Turn pages the right way up.', live: true },
-  { href: '/delete-pages', icon: '🗑️', title: 'Delete pages', desc: 'Remove pages you don’t need.', live: true },
-  { href: '/extract-pages', icon: '📄', title: 'Extract pages', desc: 'Pull out just the pages you need.', live: true },
-  { href: '/jpg-to-pdf', icon: '🖼️', title: 'Images → PDF', desc: 'Turn JPG / PNG photos into a PDF.', live: true },
-  { href: '/pdf-to-jpg', icon: '📸', title: 'PDF → JPG', desc: 'Export pages as PNG / JPG images.', live: true },
+  { icon: '🗂️', title: 'Merge PDFs', desc: 'Add pages from other PDFs and combine them into one, in any order.' },
+  { icon: '✂️', title: 'Split PDF', desc: 'Pull a range of pages out into a separate file.' },
+  { icon: '🔄', title: 'Rotate pages', desc: 'Turn any page — or the whole document — the right way up.' },
+  { icon: '🗑️', title: 'Delete pages', desc: 'Remove the pages you don’t need.' },
+  { icon: '📄', title: 'Extract pages', desc: 'Keep just the pages you want as a new PDF.' },
+  { icon: '🖼️', title: 'Images → PDF', desc: 'Drop in JPG / PNG photos and turn them into a PDF.' },
+  { icon: '📸', title: 'PDF → images', desc: 'Export pages as PNG / JPG image files.' },
+  { icon: '✎', title: 'Annotate', desc: 'Draw, highlight, add text and shapes, then move or resize them.' },
+  { icon: '＃', title: 'Page numbers & watermark', desc: 'Stamp page numbers or a watermark across the document.' },
 ];
 ---
 
@@ -22,12 +26,12 @@ const tools = [
     <p class="eyebrow">Free · Private · 100% in your browser</p>
     <h1>Edit & convert PDFs that <span class="grad">never leave your device</span></h1>
     <p class="lead" style="margin: 0 auto 28px;">
-      A full visual PDF editor plus quick one-task tools — merge, split, rotate, organize,
-      annotate, and convert. No account, no limits, and nothing is ever uploaded.
+      One visual PDF editor that does it all — merge, split, rotate, organize, annotate,
+      and convert, all in the same place. No account, no limits, and nothing is ever uploaded.
     </p>
     <div class="hero-cta">
       <a class="btn btn-primary btn-lg" href="/edit-pdf">Open the PDF editor →</a>
-      <a class="btn btn-ghost btn-lg" href="#tools">Browse all tools</a>
+      <a class="btn btn-ghost btn-lg" href="#tools">See everything it does</a>
     </div>
     <div class="hero-badges">
       <span class="badge"><b>Free</b></span>
@@ -51,17 +55,24 @@ const tools = [
       <span class="btn btn-primary" style="flex-shrink: 0;">Open the editor →</span>
     </a>
 
-    <p class="section-label">Or jump to a single task</p>
+    <p class="section-label">Everything the editor does</p>
+    <p class="muted" style="margin: -8px 0 0; max-width: 620px;">
+      It’s all one workspace — no separate pages to hunt through. Open the editor, load a PDF, and
+      reach for whatever you need.
+    </p>
     <div class="tool-grid">
       {
         tools.map((t) => (
-          <a class="tool" href={t.live ? t.href : '#'} aria-disabled={!t.live}>
+          <div class="tool tool-static">
             <div class="ico">{t.icon}</div>
-            <h3>{t.title} {!t.live && <span class="soon">Soon</span>}</h3>
+            <h3>{t.title}</h3>
             <p>{t.desc}</p>
-          </a>
+          </div>
         ))
       }
+    </div>
+    <div class="tools-cta">
+      <a class="btn btn-primary btn-lg" href="/edit-pdf">Open the editor to do any of these →</a>
     </div>
   </section>
 
