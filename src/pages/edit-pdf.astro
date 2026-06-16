@@ -1,22 +1,8 @@
 ---
-import Base from '../layouts/Base.astro';
+import ToolLanding from '../components/ToolLanding.astro';
 import EditorTool from '../components/EditorTool.astro';
 ---
 
-<Base
-  title="Edit PDF — reorder, rotate, delete & extract pages | DocLab"
-  description="A free visual PDF editor in your browser: see every page, then reorder, rotate, delete, duplicate, and extract pages, and download. Your file is never uploaded."
->
-  <section class="container container--wide tool-head">
-    <p class="eyebrow">Free · Private · In your browser</p>
-    <h1>Edit PDF</h1>
-    <p class="lead">
-      See your whole document as thumbnails, then reorder, rotate, delete, duplicate, or extract
-      pages — all in one place. Download when you're done. Your file never leaves your browser.
-    </p>
-  </section>
-
-  <section class="container container--wide" style="padding-top: 8px;">
-    <EditorTool />
-  </section>
-</Base>
+<ToolLanding tool="edit">
+  <EditorTool />
+</ToolLanding>

@@ -3,6 +3,20 @@ import Base from '../layouts/Base.astro';
 
 const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 
+// Brand entity for search engines / knowledge graph.
+const orgJsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'DocLab',
+    url: 'https://doc-lab.net',
+    logo: 'https://doc-lab.net/icon.png',
+    description: 'Free, 100% in-browser PDF tools. Nothing is uploaded.',
+    sameAs: ['https://apps.microsoft.com/detail/9MV6R84RVKCZ', 'https://github.com/alij1991/doclab-web'],
+  },
+  { '@context': 'https://schema.org', '@type': 'WebSite', name: 'DocLab', url: 'https://doc-lab.net' },
+];
+
 // Capabilities of the one editor — shown as an explanatory feature list, not
 // separate destinations (every one of these happens inside /edit-pdf).
 const tools = [
@@ -21,6 +35,7 @@ const tools = [
 <Base
   title="DocLab — free, private PDF editor & tools (nothing uploaded)"
   description="A free visual PDF editor plus quick tools — edit, merge, split, rotate, organize, annotate, and convert PDFs right in your browser. No account, no limits, nothing uploaded."
+  jsonLd={orgJsonLd}
 >
   <section class="container hero">
     <p class="eyebrow">Free · Private · 100% in your browser</p>

@@ -1,22 +1,8 @@
 ---
-import Base from '../layouts/Base.astro';
+import ToolLanding from '../components/ToolLanding.astro';
 import EditorTool from '../components/EditorTool.astro';
 ---
 
-<Base
-  title="PDF to JPG — convert PDF pages to images | DocLab"
-  description="Convert PDF pages to PNG or JPG images, free and entirely in your browser. Open your PDF, then use “To images.” Your file is never uploaded."
->
-  <section class="container tool-head">
-    <p class="eyebrow"><a href="/" style="color: var(--brand); text-decoration: none;">← All tools</a></p>
-    <h1>PDF to JPG</h1>
-    <p class="lead">
-      Open your PDF, see every page, then use <strong>🖼 To images</strong> to export pages as PNG or
-      JPG (multiple pages download as a zip). Runs in your browser; your file is never uploaded.
-    </p>
-  </section>
-
-  <section class="container" style="padding-top: 8px;">
-    <EditorTool />
-  </section>
-</Base>
+<ToolLanding tool="topng">
+  <EditorTool />
+</ToolLanding>

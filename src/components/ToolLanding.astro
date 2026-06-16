@@ -1,0 +1,108 @@
+---
+import Base from '../layouts/Base.astro';
+import { TOOLS } from '../lib/toolContent';
+
+interface Props { tool: string }
+const { tool } = Astro.props;
+const t = TOOLS[tool];
+if (!t) throw new Error('ToolLanding: unknown tool "' + tool + '"');
+
+const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
+const site = 'https://doc-lab.net';
+const url = site + t.slug;
+
+// Structured data: WebApplication (free browser tool) + BreadcrumbList + FAQPage.
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: 'DocLab ' + t.name,
+    url,
+    applicationCategory: 'UtilitiesApplication',
+    operatingSystem: 'Any (web browser)',
+    browserRequirements: 'Requires a modern web browser. No installation.',
+    description: t.description,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    featureList: t.why,
+    isAccessibleForFree: true,
+    publisher: { '@type': 'Organization', name: 'DocLab', url: site },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: site + '/' },
+      { '@type': 'ListItem', position: 2, name: 'PDF Tools', item: site + '/#tools' },
+      { '@type': 'ListItem', position: 3, name: t.name, item: url },
+    ],
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: t.faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  },
+];
+---
+
+<Base title={t.title} description={t.description} jsonLd={jsonLd}>
+  <section class="container tool-head">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span>
+      <a href="/#tools">PDF Tools</a> <span aria-hidden="true">›</span>
+      <span aria-current="page">{t.name}</span>
+    </nav>
+    <h1>{t.h1}</h1>
+    <p class="lead">{t.lead}</p>
+  </section>
+
+  <section class={t.wide ? 'container container--wide' : 'container'} style="padding-top: 8px;">
+    <slot />
+  </section>
+
+  <section class="container tool-content">
+    <h2>{t.name} — how it works</h2>
+    <ol class="howto">
+      {t.steps.map((s) => (
+        <li><strong>{s.name}.</strong> {s.text}</li>
+      ))}
+    </ol>
+
+    <h2>Your files never leave your browser</h2>
+    <p>{t.privacy} <a href="/privacy">Read the privacy policy →</a></p>
+
+    <h2>Why use DocLab</h2>
+    <ul class="why-list">
+      {t.why.map((w) => (<li>{w}</li>))}
+    </ul>
+
+    <h2>Frequently asked questions</h2>
+    <div class="faq">
+      {t.faqs.map((f) => (
+        <div class="faq-item">
+          <h3>{f.q}</h3>
+          <p>{f.a}</p>
+        </div>
+      ))}
+    </div>
+
+    <h2>Related PDF tools</h2>
+    <ul class="related-tools">
+      {t.related.map((r) => (<li><a href={r.href}>{r.label}</a></li>))}
+    </ul>
+
+    <div class="card promo" style="margin-top: 32px;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="margin: 0 0 8px;">More than {t.name.toLowerCase()}?</h2>
+        <p class="muted" style="margin: 0;">
+          The full <a href="/edit-pdf">DocLab editor</a> reorders, rotates, annotates, signs, numbers,
+          watermarks, and converts — all in one place, still 100% in your browser.
+        </p>
+      </div>
+      <a class="btn btn-primary" href={STORE_URL} target="_blank" rel="noopener" style="flex-shrink: 0;">Get the free desktop app →</a>
+    </div>
+  </section>
+</Base>

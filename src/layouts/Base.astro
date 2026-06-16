@@ -4,9 +4,14 @@ import '../styles/global.css';
 interface Props {
   title: string;
   description: string;
+  /** Optional JSON-LD structured-data objects rendered as <script type="application/ld+json">. */
+  jsonLd?: unknown[];
 }
-const { title, description } = Astro.props;
+const { title, description, jsonLd = [] } = Astro.props;
 const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
+// Self-referencing canonical + absolute OG image (Astro.site = https://doc-lab.net).
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const ogImage = new URL('/og.png', Astro.site).href;
 ---
 
 <!doctype html>
@@ -16,13 +21,27 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
     <link rel="icon" href="/icon.png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#5B5BD6" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content="DocLab" />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
     <meta name="generator" content={Astro.generator} />
+    {jsonLd.map((obj) => (
+      <script type="application/ld+json" is:inline set:html={JSON.stringify(obj)} />
+    ))}
     {/* CSP is defense-in-depth here; the authoritative copy is public/_headers
         (Cloudflare). 'wasm-unsafe-eval' is reserved for the future pdf.js/WASM
         viewer — the merge tool needs none of it. */}
@@ -49,6 +68,16 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
 
     <footer class="site-footer">
       <div class="container">
+        <nav class="footer-tools" aria-label="PDF tools">
+          <a href="/edit-pdf">Edit PDF</a>
+          <a href="/merge-pdf">Merge PDF</a>
+          <a href="/split-pdf">Split PDF</a>
+          <a href="/rotate-pdf">Rotate PDF</a>
+          <a href="/delete-pages">Delete pages</a>
+          <a href="/extract-pages">Extract pages</a>
+          <a href="/jpg-to-pdf">Images to PDF</a>
+          <a href="/pdf-to-jpg">PDF to JPG</a>
+        </nav>
         <p><strong>Your files never leave your browser.</strong> Every tool runs entirely on your device — nothing is uploaded.</p>
         <p class="muted">
           <a href="/">Home</a> ·

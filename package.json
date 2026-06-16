@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
+    "@astrojs/sitemap": "^3.7.3",
     "license-checker-rseidelsohn": "^5.0.1",
     "typescript": "^5.9.3"
   }

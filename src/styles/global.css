@@ -318,6 +318,32 @@ body.doc-open #status:empty { display: none; }
 .prose th { color: var(--fg); background: var(--card); white-space: nowrap; }
 .prose hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
 
+/* Tool landing content (SEO sections below the interactive tool) */
+.crumbs { font-size: 13px; color: var(--muted); margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.crumbs a { color: var(--brand); text-decoration: none; }
+.crumbs a:hover { text-decoration: underline; }
+.crumbs span[aria-current] { color: var(--fg); }
+.tool-content { max-width: var(--maxw); margin: 40px auto 0; }
+.tool-content h2 { font-size: 22px; margin: 32px 0 12px; }
+.tool-content > p, .tool-content li { color: var(--muted); line-height: 1.7; }
+.tool-content a { color: var(--brand); }
+.howto { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.howto li::marker { color: var(--brand); font-weight: 700; }
+.howto strong { color: var(--fg); }
+.why-list { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 18px; }
+.why-list li { position: relative; padding-left: 24px; }
+.why-list li::before { content: "✓"; position: absolute; left: 0; color: var(--ok); font-weight: 700; }
+@media (max-width: 640px) { .why-list { grid-template-columns: 1fr; } }
+.faq-item { border-top: 1px solid var(--line); padding: 14px 0; }
+.faq-item h3 { font-size: 15.5px; margin: 0 0 6px; color: var(--fg); }
+.faq-item p { margin: 0; color: var(--muted); line-height: 1.6; }
+.related-tools { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.related-tools a { display: inline-block; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); text-decoration: none; font-size: 14px; }
+.related-tools a:hover { border-color: var(--line-2); }
+.footer-tools { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: center; margin: 0 0 16px; }
+.footer-tools a { color: var(--muted); text-decoration: none; font-size: 13.5px; }
+.footer-tools a:hover { color: var(--fg); }
+
 /* FAQ accordion (desktop landing) */
 details { border: 1px solid var(--line); border-radius: 11px; padding: 0 18px; margin-bottom: 12px; background: var(--card); }
 details[open] { border-color: var(--line-2); }

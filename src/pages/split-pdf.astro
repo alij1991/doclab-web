@@ -1,22 +1,8 @@
 ---
-import Base from '../layouts/Base.astro';
+import ToolLanding from '../components/ToolLanding.astro';
 import SplitTool from '../components/SplitTool.astro';
 ---
 
-<Base
-  title="Split PDF — free & private | DocLab"
-  description="Split a PDF into separate files — by page, by custom ranges, or every N pages. Free and entirely in your browser. Your file is never uploaded."
->
-  <section class="container tool-head">
-    <p class="eyebrow"><a href="/" style="color: var(--brand); text-decoration: none;">← All tools</a></p>
-    <h1>Split PDF</h1>
-    <p class="lead">
-      Break one PDF into several — each page on its own, by custom ranges, or every N pages.
-      Multiple files come back as a zip. Runs in your browser; your file is never uploaded.
-    </p>
-  </section>
-
-  <section class="container" style="padding-top: 8px;">
-    <SplitTool />
-  </section>
-</Base>
+<ToolLanding tool="split">
+  <SplitTool />
+</ToolLanding>

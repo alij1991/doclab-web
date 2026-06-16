@@ -1,22 +1,8 @@
 ---
-import Base from '../layouts/Base.astro';
+import ToolLanding from '../components/ToolLanding.astro';
 import MergeTool from '../components/MergeTool.astro';
 ---
 
-<Base
-  title="Merge PDF — free & private | DocLab"
-  description="Combine multiple PDF files into one, free and entirely in your browser. Your files are never uploaded."
->
-  <section class="container tool-head">
-    <p class="eyebrow"><a href="/" style="color: var(--brand); text-decoration: none;">← All tools</a></p>
-    <h1>Merge PDF</h1>
-    <p class="lead">
-      Combine several PDFs into a single file, in the order you choose. Everything happens in
-      your browser — your files are never uploaded.
-    </p>
-  </section>
-
-  <section class="container" style="padding-top: 8px;">
-    <MergeTool />
-  </section>
-</Base>
+<ToolLanding tool="merge">
+  <MergeTool />
+</ToolLanding>
