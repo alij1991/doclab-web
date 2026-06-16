@@ -146,6 +146,12 @@ fieldset { border: 1px solid var(--line); border-radius: 11px; padding: 14px 16p
 legend { padding: 0 6px; color: var(--muted); font-size: 13px; }
 code { background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 12.5px; }
 .warn { color: var(--warn); font-size: 14px; margin: 0 0 16px; }
+/* Compact, dismissible accessibility notice (one-line strip) */
+.warn-strip { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--warn); margin: 0; padding: 4px 10px; border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px; background: rgba(251, 191, 36, 0.06); }
+.warn-strip .warn-msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.warn-strip .warn-ico { flex: 0 0 auto; }
+.warn-strip .warn-x { flex: 0 0 auto; background: none; border: 0; color: var(--warn); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; opacity: 0.8; font-family: inherit; }
+.warn-strip .warn-x:hover { opacity: 1; }
 
 /* Images -> PDF thumbnail grid */
 .imggrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin: 22px 0 0; }
@@ -177,7 +183,7 @@ code { background: var(--card); border: 1px solid var(--line); border-radius: 5p
 .ptile .tilebar .btn-icon.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
 
 /* Editor app shell: file bar + grouped toolbar + studio (rail | stage | tool panel) */
-.ed-filebar { display: flex; align-items: center; gap: 12px; margin: 18px 0 10px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.ed-filebar { display: flex; align-items: center; gap: 12px; margin: 14px 0 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
 .ed-filebar .meta { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .ed-filebar .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .ed-filebar .sub { font-size: 13px; color: var(--muted); }
@@ -249,6 +255,9 @@ code { background: var(--card); border: 1px solid var(--line); border-radius: 5p
 .atool { padding: 8px 6px; font-size: 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); color: var(--fg); cursor: pointer; font-family: inherit; }
 .atool:hover { border-color: var(--line-2); }
 .atool.active { border-color: var(--brand); background: rgba(124, 108, 255, 0.14); }
+/* Select/Move is the primary mode toggle — emphasize it across the full row */
+.atool.atool-select { grid-column: 1 / -1; font-weight: 600; border-color: var(--line-2); background: linear-gradient(180deg, rgba(124, 108, 255, 0.10), rgba(124, 108, 255, 0.04)); }
+.atool.atool-select.active { border-color: var(--brand); background: rgba(124, 108, 255, 0.18); }
 .swatches { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .swatches .sw { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--line-2); cursor: pointer; padding: 0; }
 .swatches .sw.active { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand); }
@@ -270,9 +279,9 @@ body.doc-open .tool-head { display: none; }
 body.doc-open .container--wide { max-width: none; padding-left: 16px; padding-right: 16px; }
 body.doc-open .editor-tool > .trust,
 body.doc-open .editor-tool > .upsell { display: none; }
-body.doc-open #workspace { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 76px); }
-body.doc-open .ed-filebar { margin: 4px 0 0; padding: 9px 14px; }
-body.doc-open #warn { margin: 0; font-size: 12.5px; padding: 8px 12px; border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 9px; background: rgba(251, 191, 36, 0.06); }
+body.doc-open #workspace { display: flex; flex-direction: column; gap: 6px; height: calc(100vh - 72px); }
+body.doc-open .ed-filebar { margin: 0; padding: 6px 12px; font-size: 13px; }
+body.doc-open #warn { padding: 3px 10px; font-size: 12px; }
 body.doc-open .editor-bar { position: static; margin: 0; }
 body.doc-open .studio { flex: 1 1 auto; min-height: 0; height: auto; }
 body.doc-open #status { position: fixed; right: 18px; bottom: 18px; z-index: 40; margin: 0; padding: 11px 16px; border: 1px solid var(--line-2); border-radius: 11px; background: var(--bg-elev); box-shadow: var(--shadow-2); max-width: 380px; }

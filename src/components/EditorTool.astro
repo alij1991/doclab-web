@@ -30,7 +30,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       <button type="button" id="resetBtn" class="btn-ghost btn-sm" aria-label="Open a different file">Open another</button>
     </div>
 
-    <p id="warn" class="warn" hidden style="margin: 0 0 10px;"></p>
+    <div id="warn" class="warn-strip" hidden role="note">
+      <span class="warn-ico" aria-hidden="true">⚠</span>
+      <span class="warn-msg">Tagged PDF — editing here may drop accessibility tags. For tag-preserving edits, use the DocLab desktop app.</span>
+      <button type="button" id="warnDismiss" class="warn-x" aria-label="Dismiss accessibility notice">×</button>
+    </div>
 
     <div class="editor-bar" role="toolbar" aria-label="Editor actions">
       <div class="bar-group selinfo">
@@ -94,14 +98,14 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
         <div class="tp-section" data-tp="ann" hidden>
           <div class="tp-head"><strong>Annotate</strong><button type="button" class="tp-close" data-close aria-label="Close">✕</button></div>
           <div class="atools" role="group" aria-label="Annotation tool">
-            <button type="button" class="atool" data-atool="select">↖ Select</button>
+            <button type="button" class="atool atool-select" data-atool="select">↖ Select / Move</button>
             <button type="button" class="atool active" data-atool="pen">✏ Draw</button>
             <button type="button" class="atool" data-atool="highlight">🖍 Highlight</button>
             <button type="button" class="atool" data-atool="text">T Text</button>
             <button type="button" class="atool" data-atool="rect">▭ Box</button>
             <button type="button" class="atool" data-atool="line">／ Line</button>
           </div>
-          <p class="muted" id="annHint" style="font-size: 12px; margin: 0;">Draw on the page. Use <strong>↖ Select</strong> to move or resize what you've added.</p>
+          <p class="muted" id="annHint" style="font-size: 12px; margin: 0;">Draw on the page — it switches to <strong>↖ Select / Move</strong> automatically so you can drag to move or grab a handle to resize.</p>
           <div class="tp-field" id="annColorField">Color
             <span class="swatches" id="annSwatches">
               <button type="button" class="sw active" data-color="0,0,0" style="background:#111" aria-label="Black"></button>
@@ -248,6 +252,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const actx = annotCanvas.getContext('2d');
   // selection / move / resize of an existing annotation (select tool)
   let selAnnot: Annot | null = null;
+  let taughtSelect = false; // show the "switched to Select" toast only once per session
   type Box = { x: number; y: number; w: number; h: number };
   let drag: { mode: 'move' | 'resize'; handle: string; snap: Annot; obox: Box; startPdf: [number, number] } | null = null;
   const measureCtx = document.createElement('canvas').getContext('2d');
@@ -661,11 +666,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     sources.set(sid, { bytes: buf, doc });
     fileName = name;
     fileNameEl.textContent = name;
-    warnEl.hidden = !tagged;
-    if (tagged) {
-      warnEl.textContent =
-        'Heads up: this PDF is tagged for accessibility. Editing it here may drop those tags — for accessibility-preserving edits, use the DocLab desktop app.';
-    }
+    warnEl.hidden = !tagged; // message lives in markup so the dismiss button survives
 
     observer = new IntersectionObserver(
       (entries) => {
@@ -878,26 +879,31 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   $('wmBtn').addEventListener('click', () => showPanel(curTool === 'wm' ? '' : 'wm'));
   $('imgBtn').addEventListener('click', () => showPanel(curTool === 'img' ? '' : 'img'));
   toolPanel.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => showPanel('')));
+  $('warnDismiss').addEventListener('click', () => { warnEl.hidden = true; });
 
   // --- annotation controls + drawing ---
+  // Switch the active annotation tool. Callable from a button click OR
+  // programmatically (e.g. auto-switch to Select after an annotation is drawn).
+  function setTool(name: typeof annTool, btn?: HTMLButtonElement) {
+    annTool = name;
+    const target = btn ?? document.querySelector<HTMLButtonElement>('.atool[data-atool="' + name + '"]');
+    document.querySelectorAll('.atool').forEach((x) => x.classList.toggle('active', x === target));
+    const isSelect = annTool === 'select';
+    $('annColorField').hidden = isSelect;
+    $('annWidthField').hidden = isSelect || annTool === 'text';
+    $('annSizeField').hidden = annTool !== 'text';
+    $('annHint').textContent = isSelect
+      ? 'Click an annotation to select it, drag to move, drag a handle to resize. Delete removes it.'
+      : annTool === 'text'
+        ? 'Click on the page, type your text, then press Enter.'
+        : 'Draw on the page. It switches to ↖ Select / Move automatically so you can move or resize.';
+    if (annTool === 'highlight') setSwatch([1, 0.84, 0]);
+    if (!isSelect) selAnnot = null; // skipped for 'select' so an auto-selected annotation survives
+    annotCanvas.style.cursor = isSelect ? 'default' : annTool === 'text' ? 'text' : 'crosshair';
+    redrawOverlay();
+  }
   document.querySelectorAll<HTMLButtonElement>('.atool').forEach((b) =>
-    b.addEventListener('click', () => {
-      annTool = (b.dataset.atool ?? 'pen') as typeof annTool;
-      document.querySelectorAll('.atool').forEach((x) => x.classList.toggle('active', x === b));
-      const isSelect = annTool === 'select';
-      $('annColorField').hidden = isSelect;
-      $('annWidthField').hidden = isSelect || annTool === 'text';
-      $('annSizeField').hidden = annTool !== 'text';
-      $('annHint').textContent = isSelect
-        ? 'Click an annotation to select it, drag to move, drag a handle to resize. Delete removes it.'
-        : annTool === 'text'
-          ? 'Click on the page, type your text, then press Enter.'
-          : 'Draw on the page. Switch to ↖ Select to move or resize what you add.';
-      if (annTool === 'highlight') setSwatch([1, 0.84, 0]);
-      if (!isSelect) selAnnot = null;
-      annotCanvas.style.cursor = isSelect ? 'default' : annTool === 'text' ? 'text' : 'crosshair';
-      redrawOverlay();
-    }),
+    b.addEventListener('click', () => setTool((b.dataset.atool ?? 'pen') as typeof annTool, b)),
   );
   function setSwatch(rgb: [number, number, number]) {
     annRgb = rgb;
@@ -948,7 +954,16 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       redrawOverlay(previewShape(startPt, [px, py]));
     }
   });
-  function commit(a: Annot) { curAnnots().push(a); redrawOverlay(); }
+  function commit(a: Annot) {
+    curAnnots().push(a);
+    selAnnot = a; // auto-select the just-created annotation...
+    setTool('select'); // ...and switch to Select / Move so its resize handles appear (also redraws)
+    if (!taughtSelect) {
+      taughtSelect = true;
+      setStatus('Switched to Select / Move — drag to move, drag a handle to resize.');
+      setTimeout(() => { if (statusEl.textContent?.startsWith('Switched to Select')) setStatus(''); }, 4000);
+    }
+  }
   function previewShape(a: [number, number], b: [number, number]): Annot {
     if (annTool === 'line') return { kind: 'line', x1: a[0], y1: a[1], x2: b[0], y2: b[1], rgb: annRgb, width: annStroke };
     const x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]), w = Math.abs(b[0] - a[0]), h = Math.abs(b[1] - a[1]);
