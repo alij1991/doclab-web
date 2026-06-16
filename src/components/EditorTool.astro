@@ -85,7 +85,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
             <button type="button" id="zoomOutBtn" class="btn-icon" aria-label="Zoom out">−</button>
             <span id="zoomVal" class="zval">100%</span>
             <button type="button" id="zoomInBtn" class="btn-icon" aria-label="Zoom in">+</button>
-            <button type="button" id="zoomFitBtn" class="btn-icon" title="Fit width">Fit</button>
+            <button type="button" id="zoomFitBtn" class="btn-icon" title="Fit whole page">Fit</button>
           </div>
         </div>
       </section>
@@ -332,10 +332,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       return;
     }
     const token = ++bigToken;
-    const cssWidth = Math.max(200, stageScroll.clientWidth - 44);
+    const availW = Math.max(160, stageScroll.clientWidth - 44);
+    const availH = Math.max(160, stageScroll.clientHeight - 44);
     const dpr = window.devicePixelRatio || 1;
     try {
-      const pv = await doc.renderWidth(s.src, bigCanvas, cssWidth, zoom, s.rotate, dpr);
+      const pv = await doc.renderFit(s.src, bigCanvas, availW, availH, zoom, s.rotate, dpr);
       if (token !== bigToken) return; // a newer render superseded this one
       curView = pv;
       pageWrap.hidden = false;
@@ -947,15 +948,20 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   });
   function placeTextInput([cx, cy]: [number, number]) {
     if (!curView) return;
+    textLayer.querySelectorAll('input').forEach((el) => el.remove()); // only one at a time
     const input = document.createElement('input');
     input.type = 'text';
+    input.placeholder = 'Type, then Enter';
     input.style.left = cx + 'px';
-    input.style.top = cy - (annTextSize * curView.scale) + 'px';
+    input.style.top = cy - annTextSize * curView.scale + 'px';
     input.style.fontSize = annTextSize * curView.scale + 'px';
+    input.style.minWidth = '120px';
     input.style.color = `rgb(${Math.round(annRgb[0] * 255)},${Math.round(annRgb[1] * 255)},${Math.round(annRgb[2] * 255)})`;
     textLayer.appendChild(input);
-    input.focus();
+    let committed = false;
     const done = (keep: boolean) => {
+      if (committed) return;
+      committed = true;
       const text = input.value.trim();
       input.remove();
       if (keep && text && curView) {
@@ -964,10 +970,14 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       }
     };
     input.addEventListener('keydown', (ev) => {
+      ev.stopPropagation();
       if (ev.key === 'Enter') { ev.preventDefault(); done(true); }
       else if (ev.key === 'Escape') { ev.preventDefault(); done(false); }
     });
     input.addEventListener('blur', () => done(true));
+    // Focus after the click that created it has fully settled, or the canvas
+    // steals focus and the input blurs immediately (the "text doesn't work" bug).
+    setTimeout(() => input.focus(), 0);
   }
   $('imgApply').addEventListener('click', () => {
     const format = ($('imgFormat') as HTMLSelectElement).value === 'jpg' ? 'jpg' : 'png';

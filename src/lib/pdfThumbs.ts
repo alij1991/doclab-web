@@ -20,15 +20,16 @@ export interface ThumbDoc {
   /** Rail thumbnail: render page `pageIndex` (0-based) into `canvas`, fit to
    *  `maxPx` on the long edge, with `extraRotation` added to intrinsic rotation. */
   render(pageIndex: number, canvas: HTMLCanvasElement, maxPx: number, extraRotation: number): Promise<void>;
-  /** Big main view: fit the page to `cssWidth` CSS px times `zoom`, rendered at
-   *  device resolution (DPR-aware) and sized via canvas.style for crispness.
+  /** Big main view: fit the WHOLE page inside the available box (availW x availH)
+   *  times `zoom`, rendered at device resolution (DPR-aware) and sized via canvas.style.
    *  Returns the displayed size plus screen<->PDF coordinate converters
    *  (CSS px in the displayed page <-> PDF user-space points), which account
    *  for rotation and zoom — used by the annotation layer. */
-  renderWidth(
+  renderFit(
     pageIndex: number,
     canvas: HTMLCanvasElement,
-    cssWidth: number,
+    availW: number,
+    availH: number,
     zoom: number,
     extraRotation: number,
     dpr: number,
@@ -77,12 +78,14 @@ export async function openForThumbs(bytes: ArrayBuffer): Promise<ThumbDoc> {
       }
     },
 
-    async renderWidth(pageIndex, canvas, cssWidth, zoom, extraRotation, dpr) {
+    async renderFit(pageIndex, canvas, availW, availH, zoom, extraRotation, dpr) {
       const page = await doc.getPage(pageIndex + 1);
       try {
         const rotation = rotationOf(page.rotate, extraRotation);
         const unit = page.getViewport({ scale: 1, rotation });
-        const cssScale = (cssWidth / unit.width) * zoom;
+        // Fit the WHOLE page inside the available box (contain), then apply zoom.
+        const fit = Math.min(availW / unit.width, availH / unit.height);
+        const cssScale = Math.max(0.02, fit * zoom);
         const dispW = unit.width * cssScale;
         const dispH = unit.height * cssScale;
         const renderScale = cssScale * Math.min(Math.max(dpr, 1), 2);
