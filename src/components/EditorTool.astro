@@ -57,6 +57,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       <div class="bar-group" aria-label="Tools">
         <span class="grp-label">Tools</span>
         <button type="button" id="annBtn" class="btn-icon" title="Annotate: draw, highlight, text, shapes">✎ Annotate</button>
+        <button type="button" id="signBtn" class="btn-icon" title="Sign: draw, type, or upload a signature">✍ Sign</button>
         <button type="button" id="numBtn" class="btn-icon" title="Add page numbers">＃ Page numbers</button>
         <button type="button" id="wmBtn" class="btn-icon" title="Add a watermark">💧 Watermark</button>
         <button type="button" id="imgBtn" class="btn-icon" title="Export pages as images">🖼 To images</button>
@@ -124,6 +125,41 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
             <button type="button" id="annClear" class="btn btn-ghost btn-sm" style="flex:1;">Clear page</button>
           </div>
           <p class="muted" style="font-size: 12px; margin: 0;">Annotations bake into the PDF on Download / Extract / To-images.</p>
+        </div>
+
+        <div class="tp-section" data-tp="sign" hidden>
+          <div class="tp-head"><strong>Sign</strong><button type="button" class="tp-close" data-close aria-label="Close">✕</button></div>
+          <div class="atools" role="group" aria-label="Signature mode">
+            <button type="button" class="atool active" data-sigmode="draw">✏ Draw</button>
+            <button type="button" class="atool" data-sigmode="type">T Type</button>
+            <button type="button" class="atool" data-sigmode="upload">⬆ Upload</button>
+          </div>
+          <div id="sigDrawWrap" class="sig-mode">
+            <canvas id="sigPad" class="sig-pad" width="520" height="200"></canvas>
+            <p class="muted" style="font-size:12px;margin:0;">Draw your signature above with the mouse or your finger.</p>
+          </div>
+          <div id="sigTypeWrap" class="sig-mode" hidden>
+            <label class="tp-field">Your name <input id="sigText" type="text" maxlength="60" placeholder="Jane Doe" class="text-input" /></label>
+            <label class="tp-field">Style
+              <select id="sigFont" class="text-input">
+                <option value='"Segoe Script","Brush Script MT",cursive' selected>Script</option>
+                <option value='"Lucida Handwriting","Apple Chancery",cursive'>Handwriting</option>
+                <option value='"Comic Sans MS","Comic Sans",cursive'>Casual</option>
+              </select>
+            </label>
+            <canvas id="sigTypePreview" class="sig-pad" width="520" height="140"></canvas>
+          </div>
+          <div id="sigUploadWrap" class="sig-mode" hidden>
+            <button type="button" id="sigUploadBtn" class="btn btn-ghost btn-sm">Choose PNG or JPG…</button>
+            <input id="sigUploadInput" type="file" accept="image/png,image/jpeg" class="visually-hidden" tabindex="-1" aria-hidden="true" />
+            <canvas id="sigUploadPreview" class="sig-pad" width="520" height="160" hidden></canvas>
+          </div>
+          <div class="tp-row">
+            <button type="button" id="sigClear" class="btn btn-ghost btn-sm" style="flex:1;">Clear</button>
+            <button type="button" id="sigUse" class="btn btn-primary btn-sm" style="flex:1;">Use signature</button>
+          </div>
+          <label class="tp-check"><input id="sigEveryPage" type="checkbox" /> Place on every page</label>
+          <p class="muted" id="sigHint" style="font-size: 12px; margin: 0;">Create a signature, then click on the page to place it. Drag it or a corner to move / resize.</p>
         </div>
 
         <div class="tp-section" data-tp="num" hidden>
@@ -257,6 +293,15 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   type Box = { x: number; y: number; w: number; h: number };
   let drag: { mode: 'move' | 'resize'; handle: string; snap: Annot; obox: Box; startPdf: [number, number] } | null = null;
   const measureCtx = document.createElement('canvas').getContext('2d');
+
+  // --- signature feature state ---
+  let sigMode: 'draw' | 'type' | 'upload' = 'draw';
+  let pendingSig: { bytes: Uint8Array; aspect: number } | null = null; // created sig, awaiting placement
+  let placingSig = false; // true while the Sign panel has a ready signature → click page to stamp
+  // Decoded-image cache for painting image annots on the overlay, keyed by Annot.key.
+  // Kept OFF the Annot so cloneAnnot / duplicate (which deep-copy) stay valid + serializable.
+  const imgCache = new Map<string, HTMLImageElement>();
+  const imgPending = new Set<string>(); // keys currently decoding (avoid duplicate loads)
 
   function setStatus(msg: string, kind: '' | 'ok' | 'err' = '') {
     statusEl.textContent = msg;
@@ -437,12 +482,36 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       actx.font = `${a.size * sc}px Helvetica, Arial, sans-serif`;
       actx.textBaseline = 'alphabetic';
       actx.fillText(a.text, x, y);
+    } else if (a.kind === 'image') {
+      const [x1, y1] = css(a.x, a.y);
+      const [x2, y2] = css(a.x + a.w, a.y + a.h);
+      const rx = Math.min(x1, x2), ry = Math.min(y1, y2);
+      const rw = Math.abs(x2 - x1), rh = Math.abs(y2 - y1);
+      const img = getAnnotImage(a);
+      if (img) actx.drawImage(img, rx, ry, rw, rh);
+      else { actx.save(); actx.fillStyle = 'rgba(124,108,255,0.10)'; actx.fillRect(rx, ry, rw, rh); actx.restore(); }
     }
+  }
+
+  // Decode an image annot's PNG bytes to an <img> for canvas painting, cached by key.
+  // Async on first sight: kicks off a load, then repaints when ready (deferred paint).
+  function getAnnotImage(a: Extract<Annot, { kind: 'image' }>): HTMLImageElement | null {
+    const hit = imgCache.get(a.key);
+    if (hit) return hit.complete && hit.naturalWidth ? hit : null;
+    if (imgPending.has(a.key)) return null;
+    imgPending.add(a.key);
+    const url = URL.createObjectURL(new Blob([a.data as BlobPart], { type: 'image/png' }));
+    const img = new Image();
+    img.onload = () => { imgCache.set(a.key, img); imgPending.delete(a.key); URL.revokeObjectURL(url); redrawOverlay(); };
+    img.onerror = () => { imgPending.delete(a.key); URL.revokeObjectURL(url); };
+    img.src = url;
+    return null;
   }
 
   function setActive(id: string | null) {
     activeId = id;
     selAnnot = null;
+    if (curTool === 'sign' && placingSig) annotCanvas.style.cursor = 'copy'; // keep multi-page placement armed
     for (const [tid, el] of els) el.classList.toggle('active', tid === id);
     if (id) els.get(id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     updatePageInd();
@@ -576,7 +645,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       const dupId = newId('d');
       state.set(dupId, { sourceId: s.sourceId, src: s.src, rotate: s.rotate });
       const srcAnn = annots.get(id);
-      if (srcAnn && srcAnn.length) annots.set(dupId, JSON.parse(JSON.stringify(srcAnn)));
+      if (srcAnn && srcAnn.length) annots.set(dupId, srcAnn.map(cloneAnnot));
       el.after(buildTile(dupId));
       rendered.add(dupId);
       queueRender(dupId);
@@ -640,6 +709,9 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     pageWrap.hidden = true;
     curView = null;
     annots.clear();
+    imgCache.clear(); imgPending.clear(); // blob URLs already revoked on load
+    pendingSig = null; placingSig = false;
+    sigPadCtx?.clearRect(0, 0, sigPad.width, sigPad.height);
     selAnnot = null;
     drag = null;
     textLayer.replaceChildren();
@@ -864,23 +936,154 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const studioEl = $('studio');
   const toolPanel = $('toolPanel');
   const tpSections = [...toolPanel.querySelectorAll<HTMLElement>('.tp-section')];
-  let curTool: '' | 'num' | 'wm' | 'img' | 'ann' = '';
-  function showPanel(which: '' | 'num' | 'wm' | 'img' | 'ann') {
+  let curTool: '' | 'num' | 'wm' | 'img' | 'ann' | 'sign' = '';
+  function showPanel(which: '' | 'num' | 'wm' | 'img' | 'ann' | 'sign') {
     curTool = which;
     const open = which !== '';
     toolPanel.hidden = !open;
     studioEl.classList.toggle('panel-open', open);
     annotateMode = which === 'ann';
-    studioEl.classList.toggle('annotating', annotateMode);
+    // The Sign panel also needs overlay pointer events (to stamp / select / drag).
+    const signing = which === 'sign';
+    studioEl.classList.toggle('annotating', annotateMode || signing);
+    if (!signing) { placingSig = false; annotCanvas.style.cursor = 'default'; }
     for (const s of tpSections) s.hidden = s.dataset.tp !== which;
     renderBig(); // stage width changed — re-fit the page
   }
   $('annBtn').addEventListener('click', () => showPanel(curTool === 'ann' ? '' : 'ann'));
+  $('signBtn').addEventListener('click', () => showPanel(curTool === 'sign' ? '' : 'sign'));
   $('numBtn').addEventListener('click', () => showPanel(curTool === 'num' ? '' : 'num'));
   $('wmBtn').addEventListener('click', () => showPanel(curTool === 'wm' ? '' : 'wm'));
   $('imgBtn').addEventListener('click', () => showPanel(curTool === 'img' ? '' : 'img'));
   toolPanel.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => showPanel('')));
   $('warnDismiss').addEventListener('click', () => { warnEl.hidden = true; });
+
+  // ---------- Signature creator (draw / type / upload) ----------
+  const sigPad = $('sigPad') as HTMLCanvasElement;
+  const sigPadCtx = sigPad.getContext('2d');
+  const sigTypePreview = $('sigTypePreview') as HTMLCanvasElement;
+  const sigUploadPreview = $('sigUploadPreview') as HTMLCanvasElement;
+  const sigText = $('sigText') as HTMLInputElement;
+  const sigFont = $('sigFont') as HTMLSelectElement;
+  let sigDrawing = false;
+
+  function setSigMode(m: typeof sigMode, btn?: HTMLElement) {
+    sigMode = m;
+    const target = btn ?? document.querySelector<HTMLElement>('[data-sigmode="' + m + '"]');
+    document.querySelectorAll<HTMLElement>('[data-sigmode]').forEach((x) => x.classList.toggle('active', x === target));
+    $('sigDrawWrap').hidden = m !== 'draw';
+    $('sigTypeWrap').hidden = m !== 'type';
+    $('sigUploadWrap').hidden = m !== 'upload';
+  }
+  document.querySelectorAll<HTMLElement>('[data-sigmode]').forEach((b) =>
+    b.addEventListener('click', () => setSigMode((b.dataset.sigmode as typeof sigMode) ?? 'draw', b)));
+
+  // Trim transparent margins; return a tight crop canvas (or null if blank).
+  function trimTransparent(src: HTMLCanvasElement): { canvas: HTMLCanvasElement; w: number; h: number } | null {
+    const ctx = src.getContext('2d'); if (!ctx) return null;
+    const { width, height } = src;
+    const d = ctx.getImageData(0, 0, width, height).data;
+    let mnx = width, mny = height, mxx = -1, mxy = -1;
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      if (d[(y * width + x) * 4 + 3]! > 8) { if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; }
+    }
+    if (mxx < mnx || mxy < mny) return null;
+    const pad = 6, w = mxx - mnx + 1 + pad * 2, h = mxy - mny + 1 + pad * 2;
+    const out = document.createElement('canvas'); out.width = w; out.height = h;
+    out.getContext('2d')!.drawImage(src, mnx - pad, mny - pad, w, h, 0, 0, w, h);
+    return { canvas: out, w, h };
+  }
+  function canvasToPngBytes(c: HTMLCanvasElement): Promise<Uint8Array> {
+    return new Promise((res, rej) => c.toBlob(async (b) => {
+      if (!b) { rej(new Error('encode failed')); return; }
+      res(new Uint8Array(await b.arrayBuffer()));
+    }, 'image/png'));
+  }
+  async function finalizeSig(src: HTMLCanvasElement, trim: boolean) {
+    const cropped = trim ? trimTransparent(src) : { canvas: src, w: src.width, h: src.height };
+    if (!cropped) { setStatus('Draw or type a signature first.', 'err'); return; }
+    pendingSig = { bytes: await canvasToPngBytes(cropped.canvas), aspect: cropped.w / Math.max(1, cropped.h) };
+    placingSig = true;
+    $('sigHint').textContent = 'Click on the page to place your signature. It stays ready for more pages.';
+    annotCanvas.style.cursor = 'copy';
+  }
+
+  // Draw pad
+  function sigPadPoint(e: PointerEvent): [number, number] {
+    const r = sigPad.getBoundingClientRect();
+    return [(e.clientX - r.left) * (sigPad.width / r.width), (e.clientY - r.top) * (sigPad.height / r.height)];
+  }
+  sigPad.addEventListener('pointerdown', (e) => {
+    if (!sigPadCtx) return; sigDrawing = true; sigPad.setPointerCapture(e.pointerId);
+    const [x, y] = sigPadPoint(e);
+    sigPadCtx.beginPath(); sigPadCtx.moveTo(x, y);
+    sigPadCtx.lineWidth = 3; sigPadCtx.lineCap = 'round'; sigPadCtx.lineJoin = 'round'; sigPadCtx.strokeStyle = '#111';
+  });
+  sigPad.addEventListener('pointermove', (e) => { if (!sigDrawing || !sigPadCtx) return; const [x, y] = sigPadPoint(e); sigPadCtx.lineTo(x, y); sigPadCtx.stroke(); });
+  sigPad.addEventListener('pointerup', () => { sigDrawing = false; });
+
+  // Type preview
+  function renderTypePreview() {
+    const ctx = sigTypePreview.getContext('2d'); if (!ctx) return;
+    ctx.clearRect(0, 0, sigTypePreview.width, sigTypePreview.height);
+    const txt = sigText.value.trim(); if (!txt) return;
+    ctx.fillStyle = '#111'; ctx.textBaseline = 'middle'; ctx.font = `64px ${sigFont.value}`;
+    ctx.fillText(txt, 12, sigTypePreview.height / 2);
+  }
+  sigText.addEventListener('input', renderTypePreview);
+  sigFont.addEventListener('change', renderTypePreview);
+
+  // Upload (normalize to PNG; JPG drawn onto a canvas then re-encoded)
+  $('sigUploadBtn').addEventListener('click', () => ($('sigUploadInput') as HTMLInputElement).click());
+  ($('sigUploadInput') as HTMLInputElement).addEventListener('change', (e) => {
+    const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
+    const url = URL.createObjectURL(f); const img = new Image();
+    img.onload = () => {
+      const c = sigUploadPreview; const s = Math.min(1, 520 / img.naturalWidth);
+      c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+      c.hidden = false; const ctx = c.getContext('2d')!; ctx.clearRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      // PNG may carry alpha (trim it); JPG is opaque (no trim).
+      finalizeSig(c, /\.png$/i.test(f.name) || f.type === 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); setStatus('Could not read that image.', 'err'); };
+    img.src = url;
+    (e.target as HTMLInputElement).value = '';
+  });
+
+  $('sigClear').addEventListener('click', () => {
+    sigPadCtx?.clearRect(0, 0, sigPad.width, sigPad.height);
+    sigTypePreview.getContext('2d')?.clearRect(0, 0, sigTypePreview.width, sigTypePreview.height);
+    sigUploadPreview.hidden = true; sigText.value = '';
+    pendingSig = null; placingSig = false; annotCanvas.style.cursor = 'default';
+    $('sigHint').textContent = 'Create a signature, then click on the page to place it.';
+  });
+  ($('sigUse') as HTMLButtonElement).addEventListener('click', async () => {
+    if (sigMode === 'draw') await finalizeSig(sigPad, true);
+    else if (sigMode === 'type') { renderTypePreview(); await finalizeSig(sigTypePreview, true); }
+    else if (pendingSig) { placingSig = true; annotCanvas.style.cursor = 'copy'; } // upload already finalized → re-arm
+    if (($('sigEveryPage') as HTMLInputElement).checked && pendingSig) stampOnEveryPage();
+  });
+
+  // Stamp the ready signature at a PDF point (clicked point = top-left), width = 30% of page width.
+  function stampSigAt(id: string, px: number, py: number) {
+    if (!pendingSig || !curView) return;
+    const pageW = curView.cssWidth / curView.scale; // page width in PDF points
+    const w = pageW * 0.30, h = w / Math.max(0.01, pendingSig.aspect);
+    let list = annots.get(id); if (!list) { list = []; annots.set(id, list); }
+    list.push({ kind: 'image', x: px, y: py - h, w, h, data: pendingSig.bytes.slice(), key: crypto.randomUUID() });
+  }
+  function stampOnEveryPage() {
+    if (!pendingSig) return;
+    const ref = curView ? curView.cssWidth / curView.scale : 612; // approximate page width
+    const w = ref * 0.30, h = w / Math.max(0.01, pendingSig.aspect);
+    for (const id of orderedIds()) {
+      let list = annots.get(id); if (!list) { list = []; annots.set(id, list); }
+      list.push({ kind: 'image', x: ref * 0.5 - w / 2, y: 48, w, h, data: pendingSig.bytes.slice(), key: crypto.randomUUID() });
+    }
+    redrawOverlay();
+    setStatus('Signature placed on every page.', 'ok');
+  }
 
   // --- annotation controls + drawing ---
   // Switch the active annotation tool. Callable from a button click OR
@@ -934,7 +1137,16 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     return [e.clientX - r.left, e.clientY - r.top];
   };
   annotCanvas.addEventListener('pointerdown', (e) => {
-    if (!annotateMode || !curView) return;
+    if ((!annotateMode && curTool !== 'sign') || !curView) return;
+    if (curTool === 'sign') {
+      const [cx, cy] = overlayXY(e);
+      if (selAnnot && handleAt(cx, cy)) { selectPointerDown(e); return; } // grab a resize handle
+      const [px, py] = curView.toPdf(cx, cy);
+      if (hitAnnot(px, py)) { selectPointerDown(e); return; }              // select / move a placed signature
+      if (placingSig && activeId) { stampSigAt(activeId, px, py); redrawOverlay(); return; } // drop a new one
+      selAnnot = null; redrawOverlay();
+      return;
+    }
     if (annTool === 'select') { selectPointerDown(e); return; }
     if (annTool === 'text') { placeTextInput(overlayXY(e)); return; }
     hideHoverTip();
@@ -946,6 +1158,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     else startPt = [px, py];
   });
   annotCanvas.addEventListener('pointermove', (e) => {
+    if (curTool === 'sign') {
+      if (drag) { selectPointerMove(e); return; }          // dragging / resizing a placed signature
+      if (placingSig) { annotCanvas.style.cursor = 'copy'; return; } // keep the "click to place" cursor
+      selectPointerMove(e); return;                         // hover cursor over placed signatures
+    }
     if (annTool === 'select') { selectPointerMove(e); return; }
     if (!curView) return;
     if (!drawing) { updateHoverTip(e); return; } // not drawing → maybe show the hover tip
@@ -983,6 +1200,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     return { kind: 'rect', x, y, w, h, rgb: annRgb, width: annStroke };
   }
   annotCanvas.addEventListener('pointerup', (e) => {
+    if (curTool === 'sign') { selectPointerUp(); return; }
     if (annTool === 'select') { selectPointerUp(); return; }
     if (!drawing || !curView) return;
     drawing = false;
@@ -1003,16 +1221,19 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     return Math.max(4, measureCtx.measureText(text || ' ').width);
   }
   function bboxOf(a: Annot): Box {
-    if (a.kind === 'rect' || a.kind === 'highlight') return { x: a.x, y: a.y, w: a.w, h: a.h };
+    if (a.kind === 'rect' || a.kind === 'highlight' || a.kind === 'image') return { x: a.x, y: a.y, w: a.w, h: a.h };
     if (a.kind === 'line') return { x: Math.min(a.x1, a.x2), y: Math.min(a.y1, a.y2), w: Math.max(Math.abs(a.x2 - a.x1), 1), h: Math.max(Math.abs(a.y2 - a.y1), 1) };
     if (a.kind === 'text') return { x: a.x, y: a.y - a.size * 0.22, w: measurePdf(a.text, a.size), h: a.size };
     let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
     for (let i = 0; i < a.points.length; i += 2) { const x = a.points[i]!, y = a.points[i + 1]!; if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; }
     return { x: mnx, y: mny, w: Math.max(mxx - mnx, 1), h: Math.max(mxy - mny, 1) };
   }
-  const cloneAnnot = (a: Annot): Annot => JSON.parse(JSON.stringify(a));
+  // image annots carry a Uint8Array (`data`) that JSON.stringify would corrupt
+  // into a plain object — clone the bytes explicitly so move/resize/duplicate work.
+  const cloneAnnot = (a: Annot): Annot =>
+    a.kind === 'image' ? { ...a, data: a.data.slice() } : JSON.parse(JSON.stringify(a));
   function translateAnnot(a: Annot, dx: number, dy: number) {
-    if (a.kind === 'rect' || a.kind === 'highlight' || a.kind === 'text') { a.x += dx; a.y += dy; }
+    if (a.kind === 'rect' || a.kind === 'highlight' || a.kind === 'text' || a.kind === 'image') { a.x += dx; a.y += dy; }
     else if (a.kind === 'line') { a.x1 += dx; a.y1 += dy; a.x2 += dx; a.y2 += dy; }
     else for (let i = 0; i < a.points.length; i += 2) { a.points[i] = a.points[i]! + dx; a.points[i + 1] = a.points[i + 1]! + dy; }
   }
@@ -1021,6 +1242,11 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const mapX = (x: number) => nb.x + (x - ob.x) * sx;
     const mapY = (y: number) => nb.y + (y - ob.y) * sy;
     if (a.kind === 'rect' || a.kind === 'highlight') { a.x = nb.x; a.y = nb.y; a.w = nb.w; a.h = nb.h; }
+    else if (a.kind === 'image') {
+      // Preserve aspect: drive both dims off the dominant scale factor.
+      const s = Math.abs(sx) >= Math.abs(sy) ? sx : sy;
+      a.w = Math.max(8, a.w * s); a.h = Math.max(8, a.h * s); a.x = nb.x; a.y = nb.y;
+    }
     else if (a.kind === 'line') { a.x1 = mapX(a.x1); a.y1 = mapY(a.y1); a.x2 = mapX(a.x2); a.y2 = mapY(a.y2); }
     else if (a.kind === 'text') { a.size = Math.max(4, a.size * sy); a.x = nb.x; a.y = nb.y + a.size * 0.22; }
     else for (let i = 0; i < a.points.length; i += 2) { a.points[i] = mapX(a.points[i]!); a.points[i + 1] = mapY(a.points[i + 1]!); }

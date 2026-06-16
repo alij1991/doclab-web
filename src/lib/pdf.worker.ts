@@ -73,7 +73,12 @@ export type Annot =
   | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; rgb: [number, number, number]; width: number }
   | { kind: 'rect'; x: number; y: number; w: number; h: number; rgb: [number, number, number]; width: number }
   | { kind: 'highlight'; x: number; y: number; w: number; h: number; rgb: [number, number, number]; opacity: number }
-  | { kind: 'text'; x: number; y: number; text: string; size: number; rgb: [number, number, number] };
+  | { kind: 'text'; x: number; y: number; text: string; size: number; rgb: [number, number, number] }
+  // Signature / stamped image. `data` = raw PNG bytes (always PNG; the editor
+  // normalizes draw/type/JPG to PNG). (x,y) is the box's bottom-left corner in
+  // PDF points, identical to the 'rect' convention. `key` identifies the
+  // editor's decoded-Image cache and is ignored by the worker.
+  | { kind: 'image'; x: number; y: number; w: number; h: number; data: Uint8Array; key: string };
 
 const api = {
   /** Page count for one PDF. Throws on encrypted/invalid (the UI surfaces it). */
@@ -334,6 +339,12 @@ const api = {
         } else if (a.kind === 'text') {
           if (!font) font = await doc.embedFont(StandardFonts.Helvetica);
           page.drawText(a.text, { x: a.x, y: a.y, size: a.size, font, color: rgb(a.rgb[0], a.rgb[1], a.rgb[2]) });
+        } else if (a.kind === 'image') {
+          // Always PNG. embedPng is a method on the loaded doc (see imagesToPdf);
+          // drawImage uses bottom-left origin with (x,y) = image bottom-left,
+          // matching our rect-style storage, so no Y flip is needed.
+          const embedded = await doc.embedPng(a.data);
+          page.drawImage(embedded, { x: a.x, y: a.y, width: a.w, height: a.h });
         }
       }
     }
