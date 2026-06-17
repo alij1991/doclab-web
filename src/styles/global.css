@@ -8,7 +8,7 @@
   --line: rgba(255, 255, 255, 0.09);
   --line-2: rgba(255, 255, 255, 0.17);
   --fg: #f3f3f8;
-  --muted: #9ca2b6;
+  --muted: #aab1c6;
   --brand: #7c6cff;
   --brand-2: #a855f7;
   --brand-soft: rgba(124, 108, 255, 0.14);
@@ -108,6 +108,8 @@ h2 { font-size: clamp(22px, 3.5vw, 31px); letter-spacing: -.6px; margin: 0 0 12p
 .hero-cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 .hero-badges { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
 .badge { font-size: 13px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; background: var(--card); }
+a.badge { text-decoration: none; transition: border-color .15s, color .15s; }
+a.badge:hover { border-color: var(--line-2); color: var(--fg); }
 .badge b { color: var(--fg); font-weight: 600; }
 .section-label { font-size: 13px; font-weight: 700; letter-spacing: .5px; color: var(--muted); text-transform: uppercase; margin: 44px 0 0; }
 .feature-edit { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; text-decoration: none; color: inherit; background: linear-gradient(120deg, rgba(124, 108, 255, 0.16), rgba(168, 85, 247, 0.09)); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 26px; transition: transform .18s, box-shadow .18s, border-color .18s; }
@@ -280,8 +282,25 @@ code { background: var(--card); border: 1px solid var(--line); border-radius: 5p
   .rail .ptile { flex: 0 0 110px; }
   .rail .ptile .thumb { height: 122px; }
   .stage { order: 1; height: 58vh; min-height: 380px; }
-  .toolpanel { order: 3; }
+  .toolpanel { order: 3; max-width: none; }
   .stage-bar .hint { display: none; }
+  /* Touch ergonomics: bring tap targets up to ~44px on the editor surface. */
+  .editor-bar .btn-icon { min-height: 44px; padding: 11px 14px; }
+  .atool { padding: 13px 8px; }
+  .swatches .sw { width: 30px; height: 30px; }
+  .tp-close { font-size: 18px; padding: 6px 9px; }
+}
+@media (max-width: 600px) {
+  .studio .stage { height: 52vh; min-height: 240px; }
+  .rail .ptile { flex: 0 0 84px; }
+  .rail .ptile .thumb { height: 96px; }
+  .dropzone { padding: 34px 16px; }
+  .dz-icon { font-size: 36px; }
+  .atools { grid-template-columns: 1fr; }
+  .tp-field label, .tp-field { font-weight: 600; }
+}
+@media (max-width: 480px) {
+  body.doc-open #status { left: 12px; right: 12px; bottom: 12px; max-width: none; font-size: 13px; }
 }
 
 /* ===== Full-screen editor: once a document is open, the doc is the focus.

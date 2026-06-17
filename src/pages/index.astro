@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 
 const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
+const GITHUB_URL = 'https://github.com/alij1991/doclab-web';
 
 // Brand entity for search engines / knowledge graph.
 const orgJsonLd = [
@@ -52,6 +53,7 @@ const tools = [
       <span class="badge"><b>Free</b></span>
       <span class="badge"><b>No account</b></span>
       <span class="badge"><b>Nothing uploaded</b></span>
+      <a class="badge" href={GITHUB_URL} target="_blank" rel="noopener"><b>Open source</b></a>
       <span class="badge">Windows · Mac · Linux · mobile</span>
     </div>
   </section>
@@ -99,6 +101,9 @@ const tools = [
         <p class="muted" style="margin: 0;">
           Unlike most online PDF tools, DocLab runs entirely in your browser — there's no server,
           no upload, and no account. Your documents never leave your device.
+        </p>
+        <p class="muted" style="margin: 14px 0 0;">
+          Don't just take our word for it — <a href={GITHUB_URL} target="_blank" rel="noopener" style="color: var(--brand);">the web tools are open source on GitHub</a>, so anyone can verify exactly what the code does.
         </p>
       </div>
       <div style="flex: 1; min-width: 260px;">

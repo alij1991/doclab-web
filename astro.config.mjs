@@ -8,6 +8,9 @@ import sitemap from '@astrojs/sitemap';
 export default defineConfig({
   site: 'https://doc-lab.net',
   output: 'static',
+  // /organize-pdf rendered the same editor as /edit-pdf (duplicate content) —
+  // 301 it to the canonical editor route.
+  redirects: { '/organize-pdf': '/edit-pdf' },
   // Emit /sitemap-index.xml + /sitemap-0.xml at build (referenced from robots.txt)
   // so search engines discover every tool route.
   integrations: [sitemap()],
