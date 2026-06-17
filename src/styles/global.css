@@ -25,7 +25,7 @@
   --brand-2: #a855f7; /* gradient terminal + .grad text-clip only — never a text bg alone */
   --accent: var(--brand);
   --accent-strong: #6a5cf0;
-  --accent-grad: linear-gradient(135deg, #5f4ae8, #7d39d9); /* deep enough that white text clears 4.5:1 (measured 5.8-6.1:1) */
+  --accent-grad: linear-gradient(135deg, #4f37cf, #6d33c0); /* deep indigo→violet so white text pops (measured ~7.5:1) */
   --on-accent: #ffffff;
   --accent-ink: #0a0a10;
   --brand-soft: rgba(124, 108, 255, 0.14);
@@ -116,7 +116,7 @@ main { flex: 1 0 auto; }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn-sm { padding: 9px 14px; font-size: 14px; }
 .btn-lg { padding: 15px 26px; font-size: 16px; border-radius: 12px; }
-.btn-primary { background: var(--accent-grad); color: var(--on-accent); font-weight: 650; text-shadow: 0 1px 1px rgba(10, 10, 16, 0.35); box-shadow: var(--glow-accent); }
+.btn-primary { background: var(--accent-grad); color: #fff; font-weight: 600; box-shadow: var(--glow-accent); }
 .btn-primary:hover:not(:disabled) { filter: brightness(1.06); box-shadow: var(--glow-accent), var(--shadow-2); }
 .btn-primary:focus-visible { outline: none; box-shadow: var(--focus-ring), var(--glow-accent); }
 .btn-ghost { border-color: var(--line-2); color: var(--fg); background: transparent; }
