@@ -1,0 +1,49 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+const guides = (await getCollection('guides')).sort(
+  (a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime(),
+);
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://doc-lab.net/' },
+      { '@type': 'ListItem', position: 2, name: 'Guides', item: 'https://doc-lab.net/guides' },
+    ],
+  },
+];
+---
+
+<Base
+  title="PDF Guides — how to merge, sign, split & convert privately | DocLab"
+  description="Plain-language guides to working with PDFs privately — merge, sign, split, and convert without uploading your files. Free, in your browser."
+  jsonLd={jsonLd}
+>
+  <section class="container">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span>
+      <span aria-current="page">Guides</span>
+    </nav>
+    <h1>Guides</h1>
+    <p class="lead" style="margin: 0 0 8px;">
+      Short, practical guides to getting PDF tasks done — without uploading your files. Every method
+      here runs entirely in your browser.
+    </p>
+    <div class="guide-list">
+      {
+        guides.map((g) => (
+          <a class="guide-card" href={`/guides/${g.id}`}>
+            <h2>{g.data.title}</h2>
+            <p>{g.data.description}</p>
+            <span class="guide-meta">{g.data.readMins} min read</span>
+          </a>
+        ))
+      }
+    </div>
+    {guides.length === 0 && <p class="muted">New guides are on the way.</p>}
+  </section>
+</Base>
