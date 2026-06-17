@@ -75,6 +75,7 @@
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
+  overflow-x: clip; /* belt-and-suspenders against any horizontal overflow */
   background:
     radial-gradient(110% 55% at 50% -8%, rgba(124, 108, 255, 0.1), transparent 62%) fixed,
     var(--bg);
@@ -104,7 +105,16 @@ main { flex: 1 0 auto; }
 .nav-links a { color: var(--muted); text-decoration: none; font-size: 14.5px; padding: 8px 12px; border-radius: 9px; transition: color .15s, background .15s; }
 .nav-links a:hover { color: var(--fg); background: rgba(255, 255, 255, 0.06); }
 .nav-links a.btn-primary { color: #fff; padding: 9px 16px; }
-.nav-links a.btn-primary:hover { background: linear-gradient(120deg, var(--brand), var(--brand-2)); }
+.nav-links a.btn-primary:hover { background: #6450e2; }
+/* CSS-only mobile menu: the burger label toggles the hidden checkbox. */
+.nav-burger { display: none; margin-left: auto; cursor: pointer; font-size: 20px; line-height: 1; padding: 8px 11px; border-radius: var(--radius-sm); border: 1px solid var(--line-2); color: var(--fg); user-select: none; }
+@media (max-width: 720px) {
+  .nav-burger { display: inline-flex; }
+  .nav-links { display: none; position: absolute; top: 60px; left: 12px; right: 12px; flex-direction: column; align-items: stretch; gap: 4px; margin: 0; padding: 10px; background: var(--surface-3); border: 1px solid var(--line-2); border-radius: var(--radius); box-shadow: var(--shadow-2); }
+  .nav-toggle:checked ~ .nav-links { display: flex; }
+  .nav-links a { padding: 12px 12px; font-size: 15px; }
+  .nav-links a.btn-primary { text-align: center; }
+}
 .site-footer { border-top: 1px solid var(--line); margin-top: 72px; padding: 36px 0; font-size: 14px; }
 .site-footer p { margin: 0 0 8px; }
 .site-footer a { color: var(--muted); transition: color .15s; }
@@ -116,8 +126,10 @@ main { flex: 1 0 auto; }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn-sm { padding: 9px 14px; font-size: 14px; }
 .btn-lg { padding: 15px 26px; font-size: 16px; border-radius: 12px; }
-.btn-primary { background: var(--accent-grad); color: #fff; font-weight: 600; box-shadow: var(--glow-accent); }
-.btn-primary:hover:not(:disabled) { filter: brightness(1.06); box-shadow: var(--glow-accent), var(--shadow-2); }
+/* Solid fill (not a gradient): renders identically across browsers/devices and
+   keeps white text at a strong, consistent 6.4:1. */
+.btn-primary { background: #5b46d6; color: #fff; font-weight: 600; box-shadow: var(--glow-accent); }
+.btn-primary:hover:not(:disabled) { background: #6450e2; box-shadow: var(--glow-accent), var(--shadow-2); }
 .btn-primary:focus-visible { outline: none; box-shadow: var(--focus-ring), var(--glow-accent); }
 .btn-ghost { border-color: var(--line-2); color: var(--fg); background: transparent; }
 .btn-ghost:hover:not(:disabled) { background: var(--card-2); border-color: var(--line-2); }
@@ -375,7 +387,7 @@ body.doc-open #status:empty { display: none; }
 .prose h3 { font-size: 16.5px; margin: 22px 0 8px; }
 .prose p, .prose li { color: var(--muted); line-height: 1.7; }
 .prose strong { color: var(--fg); }
-.prose a { color: var(--brand); }
+.prose a:not(.btn) { color: var(--brand); } /* keep prose links brand-colored, but not CTA buttons */
 .prose ul { padding-left: 22px; margin: 10px 0; }
 .prose li { margin: 6px 0; }
 .prose table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13.5px; display: block; overflow-x: auto; }
@@ -391,7 +403,7 @@ body.doc-open #status:empty { display: none; }
 .tool-content { max-width: var(--maxw); margin: 40px auto 0; }
 .tool-content h2 { font-size: 22px; margin: 32px 0 12px; }
 .tool-content > p, .tool-content li { color: var(--muted); line-height: 1.7; }
-.tool-content a { color: var(--brand); }
+.tool-content a:not(.btn) { color: var(--brand); } /* :not(.btn) so it doesn't override CTA button text */
 .howto { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
 .howto li::marker { color: var(--brand); font-weight: 700; }
 .howto strong { color: var(--fg); }
