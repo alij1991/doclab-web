@@ -41,7 +41,7 @@ export const TOOLS: Record<string, ToolContent> = {
     wide: false,
     title: 'Merge PDF Free — No Upload, In Your Browser | DocLab',
     description:
-      'Combine PDF files into one online, free and private. Reorder the files, then download — everything runs in your browser and nothing is ever uploaded. No account, no limits.',
+      'Combine PDF files into one online, free and private. Reorder, then download — it all runs in your browser, nothing is uploaded. No account, no limits.',
     h1: 'Merge PDF',
     lead: `Merge PDF lets you combine several PDF files into one document, in whatever order you set, without uploading anything. Add your files, arrange them top to bottom, and download the joined PDF — the whole merge runs locally in your browser, so your documents never leave your device.`,
     steps: [
@@ -74,7 +74,7 @@ export const TOOLS: Record<string, ToolContent> = {
     wide: false,
     title: 'Split PDF Free — No Upload, In Your Browser | DocLab',
     description:
-      'Split a PDF online for free: by page, by custom ranges like 1-3, 4-8, or in fixed chunks. Runs entirely in your browser — nothing is uploaded. No account, no page limits.',
+      'Split a PDF online for free — by page, custom ranges (1-3, 4-8), or fixed chunks. Runs in your browser; nothing is uploaded. No account, no page limits.',
     h1: 'Split PDF',
     lead: `Split a PDF in your browser for free — no upload, no account, no page limits. Carve one document into separate files three ways: each page on its own, by custom page ranges like 1-3, 4-8, 9-, or in fixed chunks of every N pages. One range gives you a single PDF; several come back as a tidy zip.`,
     steps: [

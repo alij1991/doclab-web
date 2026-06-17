@@ -12,6 +12,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
+    "test": "vitest run",
     "licenses": "license-checker-rseidelsohn --production --excludePrivatePackages --failOn \"AGPL-1.0;AGPL-1.0-only;AGPL-1.0-or-later;AGPL-3.0;AGPL-3.0-only;AGPL-3.0-or-later;GPL-2.0;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0;GPL-3.0-only;GPL-3.0-or-later\""
   },
   "dependencies": {
@@ -25,6 +26,7 @@
     "@astrojs/check": "^0.9.9",
     "@astrojs/sitemap": "^3.7.3",
     "license-checker-rseidelsohn": "^5.0.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.9"
   }
 }

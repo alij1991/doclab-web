@@ -302,6 +302,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   // Kept OFF the Annot so cloneAnnot / duplicate (which deep-copy) stay valid + serializable.
   const imgCache = new Map<string, HTMLImageElement>();
   const imgPending = new Set<string>(); // keys currently decoding (avoid duplicate loads)
+  const blobUrls = new Set<string>(); // download object-URLs, revoked on teardown as a backstop
 
   function setStatus(msg: string, kind: '' | 'ok' | 'err' = '') {
     statusEl.textContent = msg;
@@ -504,6 +505,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const img = new Image();
     img.onload = () => { imgCache.set(a.key, img); imgPending.delete(a.key); URL.revokeObjectURL(url); redrawOverlay(); };
     img.onerror = () => { imgPending.delete(a.key); URL.revokeObjectURL(url); };
+    // Clear a stalled decode so a corrupt image can't pin the key forever.
+    setTimeout(() => { if (imgPending.has(a.key)) { imgPending.delete(a.key); URL.revokeObjectURL(url); } }, 8000);
     img.src = url;
     return null;
   }
@@ -658,13 +661,14 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const ab = new ArrayBuffer(out.byteLength);
     new Uint8Array(ab).set(out);
     const url = URL.createObjectURL(new Blob([ab], { type: mime }));
+    blobUrls.add(url);
     const a = document.createElement('a');
     a.href = url;
     a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setTimeout(() => { URL.revokeObjectURL(url); blobUrls.delete(url); }, 2000);
   }
   const baseName = () => fileName.replace(/\.pdf$/i, '') || 'document';
 
@@ -710,6 +714,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     curView = null;
     annots.clear();
     imgCache.clear(); imgPending.clear(); // blob URLs already revoked on load
+    for (const u of blobUrls) URL.revokeObjectURL(u); // revoke any not-yet-expired download URLs
+    blobUrls.clear();
     pendingSig = null; placingSig = false;
     sigPadCtx?.clearRect(0, 0, sigPad.width, sigPad.height);
     selAnnot = null;
