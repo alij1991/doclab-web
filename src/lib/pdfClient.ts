@@ -16,10 +16,10 @@ export function pdfApi(): Comlink.Remote<PdfApi> {
     // Surface worker-level failures (load error, OOM) that bypass Comlink's
     // per-call promise — otherwise they'd vanish silently.
     worker.addEventListener('error', (e) => {
-      console.error('[pdf.worker] error:', e.message, e.filename + ':' + e.lineno);
+      console.error('[pdf.worker] error:', e.message, (e.filename || '?') + ':' + (e.lineno ?? '?'));
     });
-    worker.addEventListener('messageerror', () => {
-      console.error('[pdf.worker] message could not be deserialized');
+    worker.addEventListener('messageerror', (e) => {
+      console.error('[pdf.worker] message could not be deserialized', e.data);
     });
     remote = Comlink.wrap<PdfApi>(worker);
   }

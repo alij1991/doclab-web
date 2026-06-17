@@ -73,8 +73,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
       <section class="stage">
         <div id="stageScroll" class="stage-scroll">
           <div id="pageWrap" class="page-wrap" hidden>
-            <canvas id="bigCanvas"></canvas>
-            <canvas id="annotCanvas" class="annot-canvas"></canvas>
+            <canvas id="bigCanvas" role="img" aria-label="Current PDF page preview"></canvas>
+            <canvas id="annotCanvas" class="annot-canvas" role="img" aria-label="Annotation and signature layer"></canvas>
             <div id="textLayer" class="text-layer"></div>
             <div id="annTip" class="annot-tip" hidden aria-hidden="true">↖ Switch to <strong>Select / Move</strong> to move or resize this</div>
           </div>
@@ -135,7 +135,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
             <button type="button" class="atool" data-sigmode="upload">⬆ Upload</button>
           </div>
           <div id="sigDrawWrap" class="sig-mode">
-            <canvas id="sigPad" class="sig-pad" width="520" height="200"></canvas>
+            <canvas id="sigPad" class="sig-pad" width="520" height="200" role="img" aria-label="Signature drawing pad"></canvas>
             <p class="muted" style="font-size:12px;margin:0;">Draw your signature above with the mouse or your finger.</p>
           </div>
           <div id="sigTypeWrap" class="sig-mode" hidden>
@@ -147,12 +147,12 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
                 <option value='"Comic Sans MS","Comic Sans",cursive'>Casual</option>
               </select>
             </label>
-            <canvas id="sigTypePreview" class="sig-pad" width="520" height="140"></canvas>
+            <canvas id="sigTypePreview" class="sig-pad" width="520" height="140" role="img" aria-label="Typed signature preview"></canvas>
           </div>
           <div id="sigUploadWrap" class="sig-mode" hidden>
             <button type="button" id="sigUploadBtn" class="btn btn-ghost btn-sm">Choose PNG or JPG…</button>
             <input id="sigUploadInput" type="file" accept="image/png,image/jpeg" class="visually-hidden" tabindex="-1" aria-hidden="true" />
-            <canvas id="sigUploadPreview" class="sig-pad" width="520" height="160" hidden></canvas>
+            <canvas id="sigUploadPreview" class="sig-pad" width="520" height="160" hidden role="img" aria-label="Uploaded signature preview"></canvas>
           </div>
           <div class="tp-row">
             <button type="button" id="sigClear" class="btn btn-ghost btn-sm" style="flex:1;">Clear</button>
@@ -506,7 +506,9 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     img.onload = () => { imgCache.set(a.key, img); imgPending.delete(a.key); URL.revokeObjectURL(url); redrawOverlay(); };
     img.onerror = () => { imgPending.delete(a.key); URL.revokeObjectURL(url); };
     // Clear a stalled decode so a corrupt image can't pin the key forever.
-    setTimeout(() => { if (imgPending.has(a.key)) { imgPending.delete(a.key); URL.revokeObjectURL(url); } }, 8000);
+    setTimeout(() => {
+      if (imgPending.has(a.key)) { imgPending.delete(a.key); imgCache.delete(a.key); img.onload = img.onerror = null; img.src = ''; URL.revokeObjectURL(url); }
+    }, 8000);
     img.src = url;
     return null;
   }
@@ -952,7 +954,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     // The Sign panel also needs overlay pointer events (to stamp / select / drag).
     const signing = which === 'sign';
     studioEl.classList.toggle('annotating', annotateMode || signing);
-    if (!signing) { placingSig = false; annotCanvas.style.cursor = 'default'; }
+    if (!signing) { placingSig = false; drag = null; selAnnot = null; annotCanvas.style.cursor = 'default'; }
     for (const s of tpSections) s.hidden = s.dataset.tp !== which;
     renderBig(); // stage width changed — re-fit the page
   }
@@ -1065,9 +1067,15 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     $('sigHint').textContent = 'Create a signature, then click on the page to place it.';
   });
   ($('sigUse') as HTMLButtonElement).addEventListener('click', async () => {
-    if (sigMode === 'draw') await finalizeSig(sigPad, true);
-    else if (sigMode === 'type') { renderTypePreview(); await finalizeSig(sigTypePreview, true); }
-    else if (pendingSig) { placingSig = true; annotCanvas.style.cursor = 'copy'; } // upload already finalized → re-arm
+    try {
+      if (sigMode === 'draw') await finalizeSig(sigPad, true);
+      else if (sigMode === 'type') { renderTypePreview(); await finalizeSig(sigTypePreview, true); }
+      else if (pendingSig) { placingSig = true; annotCanvas.style.cursor = 'copy'; } // upload already finalized → re-arm
+    } catch (e) {
+      console.error('[sign] finalize failed', e);
+      setStatus("Couldn't prepare that signature — try again.", 'err');
+      return;
+    }
     if (($('sigEveryPage') as HTMLInputElement).checked && pendingSig) stampOnEveryPage();
   });
 
@@ -1382,10 +1390,16 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     const input = document.createElement('input');
     input.type = 'text';
     input.placeholder = 'Type, then Enter';
-    input.style.left = cx + 'px';
-    input.style.top = cy - annTextSize * curView.scale + 'px';
-    input.style.fontSize = annTextSize * curView.scale + 'px';
+    // Clamp inside the page so the field never lands above/off the canvas
+    // (e.g. clicking near the top edge or at high zoom).
+    const fs = annTextSize * curView.scale;
+    const maxL = Math.max(0, (textLayer.clientWidth || 0) - 130);
+    const maxT = Math.max(0, (textLayer.clientHeight || 0) - fs - 6);
+    input.style.left = Math.max(0, Math.min(cx, maxL)) + 'px';
+    input.style.top = Math.max(0, Math.min(cy - fs, maxT)) + 'px';
+    input.style.fontSize = fs + 'px';
     input.style.minWidth = '120px';
+    input.style.maxWidth = 'calc(100% - 8px)';
     input.style.color = `rgb(${Math.round(annRgb[0] * 255)},${Math.round(annRgb[1] * 255)},${Math.round(annRgb[2] * 255)})`;
     textLayer.appendChild(input);
     let committed = false;
