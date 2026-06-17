@@ -6,3 +6,11 @@
   Referrer-Policy: no-referrer
   Cross-Origin-Opener-Policy: same-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  # HTML must always revalidate so a new deploy's hashed CSS/JS is picked up
+  # immediately (otherwise browsers keep loading a cached page that points at
+  # the old stylesheet — the "fixed on home, stale on /edit-pdf" symptom).
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Astro/Vite emit content-hashed filenames here — safe to cache forever.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
