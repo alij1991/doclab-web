@@ -68,7 +68,8 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     </div>
 
     <div class="studio" id="studio">
-      <aside id="rail" class="rail" aria-label="Pages — click to open, drag to reorder"></aside>
+      <aside id="rail" class="rail" aria-label="Pages — click to open, drag or use the ▲▼ buttons to reorder"></aside>
+      <div id="railLive" class="visually-hidden" aria-live="polite"></div>
 
       <section class="stage">
         <div id="stageScroll" class="stage-scroll">
@@ -234,6 +235,7 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const fileSubEl = $('fileSub');
   const warnEl = $('warn');
   const rail = $('rail');
+  const railLive = $('railLive');
   const stageScroll = $('stageScroll');
   const bigCanvas = $('bigCanvas') as HTMLCanvasElement;
   const stageEmpty = $('stageEmpty');
@@ -318,14 +320,37 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
   const tileCount = (): number => rail.querySelectorAll('.ptile').length;
 
   function renumber() {
-    rail.querySelectorAll<HTMLElement>('.ptile').forEach((t, i) => {
+    const tiles = rail.querySelectorAll<HTMLElement>('.ptile');
+    const n = tiles.length;
+    tiles.forEach((t, i) => {
       const pos = t.querySelector('.pos');
       if (pos) pos.textContent = String(i + 1);
+      t.setAttribute('aria-label', `Page ${i + 1} of ${n}`);
+      const up = t.querySelector<HTMLButtonElement>('.pmove[data-dir="up"]');
+      const down = t.querySelector<HTMLButtonElement>('.pmove[data-dir="down"]');
+      if (up) up.disabled = i === 0;
+      if (down) down.disabled = i === n - 1;
     });
-    const n = tileCount();
     fileSubEl.textContent = `${n} page${n === 1 ? '' : 's'}`;
     updateButtons();
     updatePageInd();
+  }
+  // Move a page one step earlier (-1) or later (+1) in the rail. DOM order IS
+  // the page order (see orderedIds), so reordering = moving the tile node.
+  function movePage(id: string, dir: -1 | 1) {
+    const el = els.get(id);
+    if (!el) return;
+    let moved = false;
+    if (dir < 0) { const prev = el.previousElementSibling; if (prev) { rail.insertBefore(el, prev); moved = true; } }
+    else { const next = el.nextElementSibling; if (next) { next.after(el); moved = true; } }
+    if (!moved) return;
+    renumber();
+    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // keep focus on a still-enabled control so repeated presses keep moving
+    const want = el.querySelector<HTMLButtonElement>(`.pmove[data-dir="${dir < 0 ? 'up' : 'down'}"]`);
+    const alt = el.querySelector<HTMLButtonElement>(`.pmove[data-dir="${dir < 0 ? 'down' : 'up'}"]`);
+    (want && !want.disabled ? want : alt && !alt.disabled ? alt : el).focus();
+    railLive.textContent = `Page moved to position ${orderedIds().indexOf(id) + 1} of ${tileCount()}`;
   }
   function updatePageInd() {
     const ids = orderedIds();
@@ -560,7 +585,24 @@ const STORE_URL = 'https://apps.microsoft.com/detail/9MV6R84RVKCZ';
     ph.textContent = `Page ${s.src + 1}`;
     thumb.append(canvas, ph);
 
-    el.append(pos, rot, check, thumb);
+    // Reorder controls (discoverable, keyboard + touch accessible alongside drag)
+    const moveWrap = document.createElement('div');
+    moveWrap.className = 'ptile-move';
+    const mkMove = (dir: -1 | 1, label: string, glyph: string) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pmove';
+      b.dataset.dir = dir < 0 ? 'up' : 'down';
+      b.setAttribute('aria-label', label);
+      b.title = label;
+      b.textContent = glyph;
+      b.addEventListener('click', (e) => { e.stopPropagation(); movePage(id, dir); });
+      return b;
+    };
+    moveWrap.append(mkMove(-1, 'Move page earlier', '▲'), mkMove(1, 'Move page later', '▼'));
+
+    el.tabIndex = -1; // programmatic focus target (kept out of the tab order)
+    el.append(pos, rot, check, thumb, moveWrap);
     els.set(id, el);
     observer?.observe(el);
 
