@@ -1,6 +1,6 @@
 ---
 title: "How to Split a PDF by Page Range for Free"
-description: "Split a PDF by page range for free, right in your browser. Extract chapters, separate invoices, or break a file into parts — no upload, no sign-up, fully private."
+description: "Split a PDF by page range for free, right in your browser. Extract chapters or break a file into parts — no upload, no sign-up, fully private."
 tool: "/split-pdf"
 toolLabel: "Open the Split PDF tool"
 readMins: 5

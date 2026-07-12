@@ -1,6 +1,6 @@
 ---
 title: "Are Online PDF Tools Safe? What Happens to Your Files"
-description: "Most online PDF tools upload your file to a server. Learn how to tell which ones do, what \"in-browser\" really means, and how to edit PDFs without uploading."
+description: "Most online PDF tools upload your file to a server. Learn how to tell which ones do, what in-browser really means, and how to edit PDFs privately."
 tool: "/edit-pdf"
 toolLabel: "Open the PDF editor"
 readMins: 6

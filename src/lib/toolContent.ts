@@ -107,7 +107,7 @@ export const TOOLS: Record<string, ToolContent> = {
     wide: true,
     title: 'Rotate PDF Free — Save Permanently, No Upload | DocLab',
     description:
-      'Rotate PDF pages 90° and save the new orientation permanently. Free, private, and entirely in your browser — fix sideways or upside-down scans with nothing uploaded.',
+      'Rotate PDF pages 90° and save the orientation permanently. Free, private, entirely in your browser — fix sideways or upside-down scans; nothing uploaded.',
     h1: 'Rotate PDF',
     lead: `Rotate PDF pages 90° left or right and save the new orientation for good — perfect for sideways scans or upside-down pages. DocLab runs entirely in your browser, so your file is never uploaded and there's no account, no watermark, and no page or size limits.`,
     steps: [
@@ -141,7 +141,7 @@ export const TOOLS: Record<string, ToolContent> = {
     wide: true,
     title: 'Delete PDF Pages Free — No Upload | DocLab',
     description:
-      'Delete pages from a PDF free and in your browser — see every page, remove the ones you don’t need, and download. Nothing is uploaded. No account, no page limits.',
+      'Delete pages from a PDF free in your browser — see every page, remove the ones you don’t need, and download. Nothing is uploaded; no account needed.',
     h1: 'Delete PDF Pages',
     lead: `Delete PDF pages free and entirely in your browser, without uploading the file anywhere. Open a PDF, see every page as a thumbnail, click the ones you don't want, and download the trimmed document in seconds. No account, no install, no page or file-size caps.`,
     steps: [
@@ -208,7 +208,7 @@ export const TOOLS: Record<string, ToolContent> = {
     wide: false,
     title: 'Images to PDF (JPG/PNG) Free — No Upload | DocLab',
     description:
-      'Convert JPG and PNG images to a single PDF online, free and private. Reorder the pictures, then download — everything runs in your browser and nothing is uploaded.',
+      'Convert JPG and PNG images to one PDF online, free and private. Reorder the pictures, then download — it all runs in your browser; nothing is uploaded.',
     h1: 'Images to PDF',
     lead: `Images to PDF turns your JPG and PNG photos or scans into a single PDF — one image per page, arranged in whatever order you like — and it runs entirely in your browser, so the pictures are never uploaded. It's free, needs no account, and works without sending a single byte to a server.`,
     steps: [
@@ -241,7 +241,7 @@ export const TOOLS: Record<string, ToolContent> = {
     wide: true,
     title: 'PDF to JPG / PNG Free — No Upload | DocLab',
     description:
-      'Convert PDF to JPG or PNG images free, right in your browser. Each page becomes an image — multi-page files download as a zip. Nothing is uploaded; no account needed.',
+      'Convert PDF to JPG or PNG free in your browser. Each page becomes an image — multi-page files download as a zip. Nothing is uploaded; no account needed.',
     h1: 'PDF to JPG',
     lead: `Convert PDF to JPG (or PNG) right in your browser — open your PDF, hit To images, and download one picture per page, no uploading and no account. Every page renders locally on your own device, so even confidential documents never leave your computer.`,
     steps: [
@@ -274,7 +274,7 @@ export const TOOLS: Record<string, ToolContent> = {
     wide: true,
     title: 'Edit PDF Free — In Your Browser, No Upload | DocLab',
     description:
-      'Edit a PDF free in your browser: reorder, rotate, delete, extract and add pages, annotate, sign, number, and watermark — then download. Nothing is uploaded; no account.',
+      'Edit a PDF free in your browser: reorder, rotate, delete, extract pages, annotate, sign, and watermark — then download. Nothing is uploaded; no account.',
     h1: 'Edit PDF',
     lead: `Edit a PDF in your browser without uploading it: open any file, see every page as a thumbnail, then reorder, rotate, delete, duplicate, and extract pages, annotate, sign, add page numbers or a watermark, and download. It is free, needs no account, and your file never leaves your device.`,
     steps: [
@@ -373,7 +373,7 @@ export const TOOLS: Record<string, ToolContent> = {
     wide: true,
     title: 'Sign PDF Free — In Your Browser, No Upload | DocLab',
     description:
-      'Sign a PDF free in your browser — draw, type, or upload a signature and place it on the page. Nothing is uploaded, no account. Your document stays on your device.',
+      'Sign a PDF free in your browser — draw, type, or upload a signature and place it on the page. Nothing is uploaded; your document stays on your device.',
     h1: 'Sign PDF',
     lead: `Sign a PDF for free without uploading it. Draw your signature with a mouse or finger, type it in a handwriting style, or upload an image of it — then place it anywhere on the page, resize it, and download. Everything happens in your browser, so your document never leaves your device.`,
     steps: [

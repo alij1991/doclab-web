@@ -1,6 +1,6 @@
 ---
 title: "Merge PDFs Without Uploading Them (Free, Private)"
-description: "Combine PDF files in your browser with zero uploads. A step-by-step, privacy-first guide to merging contracts, IDs, and scans without sending them to any server."
+description: "Combine PDF files in your browser with zero uploads — a step-by-step, privacy-first guide to merging contracts, IDs, and scans locally."
 tool: "/merge-pdf"
 toolLabel: "Open the Merge PDF tool"
 readMins: 5

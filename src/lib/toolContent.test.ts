@@ -29,9 +29,10 @@ describe('toolContent (SEO landing data integrity)', () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it('meta descriptions stay within a sensible length for SERPs (<=170)', () => {
+  it('meta descriptions stay within Bing/Google SERP limits (25-160)', () => {
     for (const [key, t] of entries) {
-      expect(t.description.length, `${key} description too long`).toBeLessThanOrEqual(170);
+      expect(t.description.length, `${key} description too long`).toBeLessThanOrEqual(160);
+      expect(t.description.length, `${key} description too short`).toBeGreaterThanOrEqual(25);
     }
   });
 
